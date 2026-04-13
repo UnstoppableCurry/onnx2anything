@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verify Paddle Lite Opt Runtime</title>
+    <style>
+      body {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 24px;
+        background: #0b1020;
+        color: #e5e7eb;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 16px;
+        border-radius: 12px;
+        background: #111827;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Paddle Lite opt runtime smoke</h1>
+    <pre id="output">running...</pre>
+    <script type="module">
+      import { smokePaddleLiteOptRuntime } from '/toolchains/modules/paddlelite.mjs';
+
+      const output = document.getElementById('output');
+
+      function log(value) {
+        output.textContent = String(value);
+        console.log(value);
+      }
+
+      try {
+        const result = await smokePaddleLiteOptRuntime();
+        window.__paddleliteOptSmokeResult = result;
+        log(JSON.stringify(result, null, 2));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.__paddleliteOptSmokeResult = {
+          success: false,
+          error: message,
+        };
+        throw error;
+      }
+    </script>
+  </body>
+</html>
+

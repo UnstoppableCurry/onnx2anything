@@ -1,0 +1,14 @@
+.git
+.omx
+node_modules
+apps/web/node_modules
+apps/web/dist
+coverage
+test-results
+playwright-report
+*.log
+third_party/**/build
+third_party/**/build-*
+third_party/**/.git
+packages/wasm-converter/dist
+apps/web/public/pyodide

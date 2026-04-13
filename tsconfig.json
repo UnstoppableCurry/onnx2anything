@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./apps/web/src/*"],
+      "@components/*": ["./apps/web/src/components/*"],
+      "@hooks/*": ["./apps/web/src/hooks/*"],
+      "@utils/*": ["./apps/web/src/utils/*"],
+      "@workers/*": ["./apps/web/src/workers/*"],
+      "@tests/*": ["./tests/*"],
+      "@fixtures/*": ["./tests/fixtures/*"]
+    }
+  },
+  "include": ["apps/**/*", "packages/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

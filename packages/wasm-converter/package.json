@@ -1,0 +1,13 @@
+{
+  "name": "@onnx2anything/wasm-converter",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "clean": "rm -rf dist"
+  },
+  "files": [
+    "dist",
+    "python"
+  ]
+}

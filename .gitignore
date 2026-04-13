@@ -1,0 +1,124 @@
+# =============================================
+# Node.js / npm
+# =============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+!apps/web/package-lock.json
+
+# =============================================
+# Build outputs
+# =============================================
+dist/
+build/
+*.tsbuildinfo
+
+# =============================================
+# WASM build artifacts
+# =============================================
+# Keep committed toolchain artifacts in apps/web/public/toolchains/
+# but exclude intermediate build outputs
+third_party/ncnn/build-wasm/
+third_party/ncnn/build-wasm-onnx/
+third_party/MNN/build-wasm-converter/
+third_party/MNN/build-wasm-converter-3g/
+third_party/MNN/build-host-converter/
+third_party/openvino/build*/
+third_party/Paddle-Lite/build-wasm-opt-probe/
+third_party/Paddle-Lite/build-host-opt/
+third_party/Paddle-Lite/build.opt/
+third_party/Paddle-Lite/build.opt.*/
+third_party/Paddle-Lite/build.runtime.*/
+*.wasm.map
+
+# =============================================
+# Python
+# =============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+*.pyo
+*.pyc
+venv/
+.venv/
+.Python
+
+# =============================================
+# Cache directories
+# =============================================
+.cache/
+.cache-src/
+.parcel-cache/
+
+# =============================================
+# IDE / Editor
+# =============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =============================================
+# Test outputs
+# =============================================
+test-results/
+playwright-report/
+coverage/
+.nyc_output/
+
+# =============================================
+# Docker
+# =============================================
+docker-data/
+
+# =============================================
+# Environment & secrets
+# =============================================
+.env
+.env.local
+.env.*.local
+
+# =============================================
+# OMC / OMX orchestration state
+# =============================================
+.omx/
+.omc/
+
+# =============================================
+# Claude / AI tooling
+# =============================================
+.claude/
+.playwright-mcp/
+
+# =============================================
+# Temporary & misc
+# =============================================
+tmp/
+*.tmp
+*.log
+*.bak
+*.orig
+
+# =============================================
+# Model files (too large for git)
+# =============================================
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.mnn
+*.nb
+*.param
+*.bin
+# Exception: test fixtures checked in separately
+!tests/fixtures/**/*.onnx
+.github/workflows/

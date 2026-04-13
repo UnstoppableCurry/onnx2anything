@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verify ONNX2MNN</title>
+    <style>
+      body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 24px; background: #0b1020; color: #e5e7eb; }
+      pre { white-space: pre-wrap; word-break: break-word; padding: 16px; border-radius: 12px; background: #111827; }
+    </style>
+  </head>
+  <body>
+    <h1>ONNX -> MNN Verification</h1>
+    <pre id="output">running...</pre>
+    <script type="module">
+      import { register as registerMnn } from '/toolchains/modules/mnn.mjs';
+
+      const output = document.getElementById('output');
+      const registry = new Map();
+
+      function log(value) {
+        output.textContent = String(value);
+        console.log(value);
+      }
+
+      registerMnn({
+        register(toolchain) {
+          registry.set(toolchain.id, toolchain.convert);
+        },
+      });
+
+      const params = new URLSearchParams(window.location.search);
+      const modelPath = params.get('model') || '/verify/generated/add_const.onnx';
+      const response = await fetch(modelPath);
+      if (!response.ok) {
+        throw new Error(`failed to load ONNX (${modelPath}): ${response.status}`);
+      }
+
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const convert = registry.get('mnn');
+      if (!convert) {
+        throw new Error('mnn converter was not registered');
+      }
+
+      const raw = await convert(bytes, '{}');
+      const result = JSON.parse(raw);
+      window.__onnx2mnnResult = result;
+
+      if (!result.success) {
+        throw new Error(result.error || 'conversion failed');
+      }
+
+      log(JSON.stringify({ success: true, mnnBytes: atob(result.output_base64).length }, null, 2));
+    </script>
+  </body>
+  </html>
