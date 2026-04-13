@@ -1,0 +1,71 @@
+services:
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../:/app
+      - node_modules:/app/node_modules
+      - pyodide_cache:/app/apps/web/public/pyodide
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - PYODIDE_VERSION=0.25.0
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - onnx2anything
+
+  pyodide-builder:
+    build:
+      context: ..
+      dockerfile: docker/pyodide-builder/Dockerfile
+    volumes:
+      - ../packages/wasm-converter/dist:/output/wheels
+      - pyodide_build_cache:/build/cache
+      - ../apps/web/public/toolchains:/workspace/apps/web/public/toolchains
+    environment:
+      - PYODIDE_VERSION=0.25.0
+      - PYODIDE_PACKAGES=onnx,onnx-simplifier,numpy,micropip
+    command: /build/build-packages.sh
+    networks:
+      - onnx2anything
+
+  toolchain-builder:
+    build:
+      context: ..
+      dockerfile: docker/toolchain-builder/Dockerfile
+    container_name: onnx2anything-toolchain-builder
+    working_dir: /workspace
+    volumes:
+      - ../:/workspace
+    environment:
+      - THREADS=${THREADS:-8}
+    command: sleep infinity
+    networks:
+      - onnx2anything
+    profiles:
+      - tools
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ../apps/web/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+    networks:
+      - onnx2anything
+    profiles:
+      - prod
+
+volumes:
+  node_modules:
+  pyodide_cache:
+  pyodide_build_cache:
+
+networks:
+  onnx2anything:
+    driver: bridge
