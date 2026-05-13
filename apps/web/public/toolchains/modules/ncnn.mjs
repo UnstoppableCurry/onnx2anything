@@ -16,6 +16,7 @@ function base64ToBytes(input) {
 }
 
 let moduleFactoryPromise;
+let optimizeModuleFactoryPromise;
 
 function getToolchainBaseOrigin() {
   if (typeof self !== 'undefined' && self.location?.origin) {
@@ -89,6 +90,68 @@ async function getModuleFactory() {
   return moduleFactoryPromise;
 }
 
+async function loadNcnnOptimizeFactory() {
+  const sourceUrl = new URL('/toolchains/ncnn/ncnnoptimize.js', getToolchainBaseOrigin());
+  const sourceText = await fetch(sourceUrl).then((response) => {
+    if (!response.ok) {
+      throw new Error(`Failed to load ncnnoptimize.js: ${response.status}`);
+    }
+    return response.text();
+  });
+
+  let patchedSource = sourceText
+    .replace(
+      'var _scriptDir = import.meta.url;',
+      `var _scriptDir = ${JSON.stringify(sourceUrl.toString())};`
+    )
+    .replace(
+      /const __dirname = new URL\('\.', import\.meta\.url\)\.pathname\.replace\(\/\\\/\$\/, ''\);/,
+      `const __dirname = ${JSON.stringify(decodeURIComponent(sourceUrl.pathname.replace(/\/[^/]*$/, '')))};`
+    );
+
+  const dataUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(patchedSource)}`;
+  const module = await import(/* @vite-ignore */ dataUrl);
+  const factory = module.default ?? module;
+
+  if (typeof factory !== 'function') {
+    throw new Error('ncnnoptimize runtime did not expose a callable module factory');
+  }
+
+  return factory;
+}
+
+function resolveNcnnOptimizeWasmLocation() {
+  const wasmUrl = new URL('/toolchains/ncnn/ncnnoptimize.wasm', getToolchainBaseOrigin());
+  if (wasmUrl.protocol === 'file:') {
+    return decodeURIComponent(wasmUrl.pathname);
+  }
+  return wasmUrl.toString();
+}
+
+async function getOptimizeModuleFactory() {
+  if (!optimizeModuleFactoryPromise) {
+    optimizeModuleFactoryPromise = loadNcnnOptimizeFactory();
+  }
+  return optimizeModuleFactoryPromise;
+}
+
+async function createOptimizeModule() {
+  const createNcnnOptimizeModule = await getOptimizeModuleFactory();
+  return createNcnnOptimizeModule({
+    noInitialRun: true,
+    print: () => {},
+    printErr: (...messages) => {
+      console.warn('[ncnnoptimize]', ...messages);
+    },
+    locateFile(path) {
+      if (path.endsWith('.wasm')) {
+        return resolveNcnnOptimizeWasmLocation();
+      }
+      return resolveNcnnAsset(path);
+    },
+  });
+}
+
 async function createModule() {
   const createOnnx2NcnnModule = await getModuleFactory();
   return createOnnx2NcnnModule({
@@ -109,8 +172,9 @@ async function createModule() {
 export function register(context) {
   context.register({
     id: 'ncnn',
-    async convert(input) {
+    async convert(input, optionsJson) {
       try {
+        const options = JSON.parse(optionsJson || '{}');
         const module = await createModule();
         const inputPath = '/workspace/input.onnx';
         const paramPath = '/workspace/model.param';
@@ -136,8 +200,61 @@ export function register(context) {
         module.FS.writeFile(inputPath, inputBytes);
         module.callMain([inputPath, paramPath, binPath]);
 
-        const paramText = module.FS.readFile(paramPath, { encoding: 'utf8' });
-        const binBytes = module.FS.readFile(binPath);
+        let finalParamPath = paramPath;
+        let finalBinPath = binPath;
+
+        if (options.quantization === 'fp16') {
+          const optParamPath = '/workspace/model_fp16.param';
+          const optBinPath = '/workspace/model_fp16.bin';
+
+          try {
+            module.FS.unlink(optParamPath);
+          } catch {}
+
+          try {
+            module.FS.unlink(optBinPath);
+          } catch {}
+
+          const optimizeModule = await createOptimizeModule();
+
+          try {
+            optimizeModule.FS.mkdir('/workspace');
+          } catch {}
+
+          // Copy param and bin into the optimize module's FS
+          const paramBytes = module.FS.readFile(paramPath);
+          const binBytes = module.FS.readFile(binPath);
+          optimizeModule.FS.writeFile(paramPath, paramBytes);
+          optimizeModule.FS.writeFile(binPath, binBytes);
+
+          try {
+            optimizeModule.FS.unlink(optParamPath);
+          } catch {}
+
+          try {
+            optimizeModule.FS.unlink(optBinPath);
+          } catch {}
+
+          // Flag 65536 = FP16 storage
+          optimizeModule.callMain([paramPath, binPath, optParamPath, optBinPath, '65536']);
+
+          if (optimizeModule.FS.analyzePath(optParamPath).exists) {
+            // Read fp16 outputs from the optimize module's FS
+            const fp16ParamBytes = optimizeModule.FS.readFile(optParamPath);
+            const fp16BinBytes = optimizeModule.FS.readFile(optBinPath);
+
+            // Write back into the main module's FS for uniform readback below
+            module.FS.writeFile(optParamPath, fp16ParamBytes);
+            module.FS.writeFile(optBinPath, fp16BinBytes);
+
+            finalParamPath = optParamPath;
+            finalBinPath = optBinPath;
+          }
+          // If optimize failed for any reason, fall through and return the unoptimized output
+        }
+
+        const paramText = module.FS.readFile(finalParamPath, { encoding: 'utf8' });
+        const binBytes = module.FS.readFile(finalBinPath);
 
         try {
           module.FS.unlink(inputPath);

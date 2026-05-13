@@ -2,10 +2,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { Cpu, Github, FileCode, Sparkles } from 'lucide-react';
 
+import { cn } from './utils/cn';
 import { ModelUploader } from './components/ModelUploader';
 import { ConverterPanel, DEFAULT_OPTIONS } from './components/ConverterPanel';
 import { ProgressTracker } from './components/ProgressTracker';
 import { DownloadPanel } from './components/DownloadPanel';
+import { PaddleInputPanel } from './components/PaddleInputPanel';
 import { useConversion } from './hooks/useConversion';
 import { useModelInfo } from './hooks/useModelInfo';
 import { useToolchainManifest } from './hooks/useToolchainManifest';
@@ -27,7 +29,10 @@ interface ConversionOptions {
   dynamicShapes: boolean;
   calibrateDataset?: 'none' | 'random' | 'custom';
   verboseLogging: boolean;
+  simplify: boolean;
 }
+
+type InputFormat = 'onnx' | 'paddle';
 
 // 暗色模式切换组件
 const ThemeToggle: React.FC = () => {
@@ -68,6 +73,7 @@ function App() {
   const [modelBuffer, setModelBuffer] = useState<ArrayBuffer | null>(null);
   const [uploaderResetToken, setUploaderResetToken] = useState(0);
   const [options, setOptions] = useState<ConversionOptions>(DEFAULT_OPTIONS);
+  const [inputFormat, setInputFormat] = useState<InputFormat>('onnx');
   const {
     toolchains,
     isLoading: isLoadingToolchains,
@@ -82,6 +88,7 @@ function App() {
     result,
     runtimeInfo,
     startConversion,
+    convertPaddleToOnnx,
     downloadResult,
     reset: resetConversion,
   } = useConversion();
@@ -124,6 +131,18 @@ function App() {
     resetConversion();
   }, [resetModelInfo, resetConversion]);
 
+  const handlePaddleOnnxReady = useCallback(
+    (onnxBuffer: ArrayBuffer, filename: string) => {
+      setModelBuffer(onnxBuffer);
+      // Create a synthetic File-like object for display purposes
+      const blob = new Blob([onnxBuffer], { type: 'application/octet-stream' });
+      const syntheticFile = new File([blob], filename, { type: 'application/octet-stream' });
+      setSelectedFile(syntheticFile);
+      resetConversion();
+    },
+    [resetConversion]
+  );
+
   const handleConvert = useCallback(() => {
     if (!modelBuffer) return;
 
@@ -132,6 +151,7 @@ function App() {
       targetFormat: options.targetFormat,
       quantization: options.quantization,
       optimization: options.optimization,
+      simplify: options.simplify,
     };
 
     startConversion(modelBuffer, conversionOptions);
@@ -142,6 +162,7 @@ function App() {
     setModelBuffer(null);
     setUploaderResetToken((value) => value + 1);
     setOptions(DEFAULT_OPTIONS);
+    setInputFormat('onnx');
     resetModelInfo();
     resetConversion();
   }, [resetModelInfo, resetConversion]);
@@ -234,28 +255,101 @@ function App() {
           >
             <div className="flex items-center gap-2 mb-4">
               <FileCode className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">1. 上传 ONNX 模型</h3>
+              <h3 className="font-semibold">
+                1. 上传{inputFormat === 'paddle' ? ' PaddlePaddle' : ' ONNX'} 模型
+              </h3>
             </div>
-            <ModelUploader
-              key={`model-uploader-${uploaderResetToken}`}
-              onFileSelect={handleFileSelect}
-              onFileClear={handleFileClear}
-              disabled={isConverting}
-              resetToken={uploaderResetToken}
-            />
 
-            {(selectedFile || isExtractingModelInfo || modelInfoError) && (
-              <div className="mt-3" data-testid="model-summary">
-                <p className="text-xs text-muted-foreground">
-                  {isExtractingModelInfo
-                    ? '正在读取模型...'
-                    : modelInfoError
-                      ? `模型读取失败：${modelInfoError}`
-                      : selectedFile
-                        ? `已选择：${selectedFile.name}`
-                        : ''}
-                </p>
-              </div>
+            {/* Input format selector */}
+            <div
+              className="flex items-center gap-1 p-1 bg-muted rounded-lg mb-4 w-fit"
+              data-testid="input-format-selector"
+            >
+              <button
+                onClick={() => {
+                  if (inputFormat !== 'onnx') {
+                    setInputFormat('onnx');
+                    setSelectedFile(null);
+                    setModelBuffer(null);
+                    setUploaderResetToken((v) => v + 1);
+                    resetConversion();
+                  }
+                }}
+                disabled={isConverting}
+                data-testid="input-format-onnx"
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                  inputFormat === 'onnx'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                ONNX
+              </button>
+              <button
+                onClick={() => {
+                  if (inputFormat !== 'paddle') {
+                    setInputFormat('paddle');
+                    setSelectedFile(null);
+                    setModelBuffer(null);
+                    setUploaderResetToken((v) => v + 1);
+                    resetConversion();
+                  }
+                }}
+                disabled={isConverting}
+                data-testid="input-format-paddle"
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                  inputFormat === 'paddle'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                PaddlePaddle
+              </button>
+            </div>
+
+            {inputFormat === 'onnx' ? (
+              <>
+                <ModelUploader
+                  key={`model-uploader-${uploaderResetToken}`}
+                  onFileSelect={handleFileSelect}
+                  onFileClear={handleFileClear}
+                  disabled={isConverting}
+                  resetToken={uploaderResetToken}
+                />
+
+                {(selectedFile || isExtractingModelInfo || modelInfoError) && (
+                  <div className="mt-3" data-testid="model-summary">
+                    <p className="text-xs text-muted-foreground">
+                      {isExtractingModelInfo
+                        ? '正在读取模型...'
+                        : modelInfoError
+                          ? `模型读取失败：${modelInfoError}`
+                          : selectedFile
+                            ? `已选择：${selectedFile.name}`
+                            : ''}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <PaddleInputPanel
+                  key={`paddle-panel-${uploaderResetToken}`}
+                  onOnnxReady={handlePaddleOnnxReady}
+                  convertPaddleToOnnx={convertPaddleToOnnx}
+                  disabled={isConverting}
+                  resetToken={uploaderResetToken}
+                />
+                {selectedFile && modelBuffer && (
+                  <div className="mt-3" data-testid="model-summary">
+                    <p className="text-xs text-muted-foreground">
+                      已转换：{selectedFile.name}（ONNX，可继续选择输出格式）
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

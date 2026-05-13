@@ -211,6 +211,10 @@ export function register(context) {
           args.push('--fp16');
         }
 
+        if (options.quantization === 'int8') {
+          args.push('--weightQuantBits', '8');
+        }
+
         if (options.dumpPass) {
           args.push('--dumpPass');
         }

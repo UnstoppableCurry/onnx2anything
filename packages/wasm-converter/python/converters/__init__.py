@@ -4,13 +4,16 @@ ONNX2Anything Converter Modules
 This package provides converters for transforming ONNX models to various formats
 optimized for edge deployment.
 
-Supported formats:
+Supported output formats:
     - TFLite (TensorFlow Lite)
     - OpenVINO (Intel IR)
     - NCNN
     - MNN
     - Paddle Lite
     - TNN (Tencent Neural Network)
+
+Supported input pre-processing:
+    - PaddlePaddle → ONNX (via paddle2onnx)
 
 Note: This package is designed to run in Pyodide (WASM) environment.
 """
@@ -22,6 +25,7 @@ from .mnn_converter import MNNConverter
 from .paddlelite_converter import PaddleLiteConverter
 from .tnn_converter import TNNConverter
 from .tengine_converter import TengineConverter
+from .paddle2onnx_converter import convert_paddle_to_onnx
 
 __version__ = "0.2.0"
 __all__ = [
@@ -32,6 +36,7 @@ __all__ = [
     "PaddleLiteConverter",
     "TNNConverter",
     "TengineConverter",
+    "convert_paddle_to_onnx",
 ]
 
 

@@ -858,6 +858,50 @@ def get_supported_formats() -> str:
     return json.dumps(formats)
 
 
+def convert_paddle_to_onnx(
+    model_data_base64: str,
+    params_data_base64: Optional[str] = None,
+    opset_version: int = 13,
+) -> str:
+    """
+    Convert a PaddlePaddle model to ONNX format.
+
+    This is a pre-processing step (input conversion) that runs *before* the
+    normal ONNX → target-format pipeline.
+
+    Args:
+        model_data_base64: base64-encoded .pdmodel file.
+        params_data_base64: base64-encoded .pdiparams file (optional).
+        opset_version: ONNX opset version (default 13).
+
+    Returns:
+        JSON string with keys:
+          success, onnx_base64, onnx_size, message  –– on success
+          success, error, recommendation             –– on failure
+    """
+    logger = JSLogger("PADDLE2ONNX")
+    logger.info("Starting PaddlePaddle → ONNX conversion", "paddle2onnx", 0)
+
+    try:
+        from converters.paddle2onnx_converter import convert_paddle_to_onnx as _convert
+        result_json = _convert(model_data_base64, params_data_base64, opset_version)
+        result = json.loads(result_json)
+        if result.get("success"):
+            logger.info(result.get("message", "Conversion complete"), "paddle2onnx", 100)
+        else:
+            logger.error(result.get("error", "Conversion failed"), "paddle2onnx", 0)
+        return result_json
+    except Exception as exc:
+        import traceback
+        error_result = {
+            "success": False,
+            "error": str(exc),
+            "traceback": traceback.format_exc(),
+        }
+        logger.error(str(exc), "paddle2onnx", 0)
+        return json.dumps(error_result)
+
+
 # Create module-level logger for direct use
 _module_logger = JSLogger()
 
@@ -871,5 +915,6 @@ __all__ = [
     'convert_model_from_path',
     'analyze_model',
     'get_supported_formats',
+    'convert_paddle_to_onnx',
     'JSLogger',
 ]

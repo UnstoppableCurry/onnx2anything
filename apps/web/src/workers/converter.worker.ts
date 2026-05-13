@@ -29,8 +29,9 @@ interface WorkerPyodide {
 }
 
 interface ConversionMessage {
-  type: 'convert' | 'validate' | 'analyze' | 'simplify' | 'init';
+  type: 'convert' | 'validate' | 'analyze' | 'simplify' | 'paddle2onnx' | 'init';
   modelBuffer?: ArrayBuffer;
+  paramsBuffer?: ArrayBuffer;
   targetFormat?: string;
   quantization?: string;
   optimization?: boolean;
@@ -719,6 +720,10 @@ os.makedirs('/tmp/onnx_paddlelite', exist_ok=True)
   const tengineCode = await fetchPythonModule('converters/tengine_converter.py');
   py.FS.writeFile('/packages/wasm-converter/python/converters/tengine_converter.py', tengineCode);
 
+  // Load converters/paddle2onnx_converter.py
+  const paddle2onnxCode = await fetchPythonModule('converters/paddle2onnx_converter.py');
+  py.FS.writeFile('/packages/wasm-converter/python/converters/paddle2onnx_converter.py', paddle2onnxCode);
+
   // Load utils/model_utils.py
   const utilsCode = await fetchPythonModule('utils/model_utils.py');
   py.FS.writeFile('/packages/wasm-converter/python/utils/model_utils.py', utilsCode);
@@ -811,6 +816,49 @@ async function handleConvert(message: ConversionMessage): Promise<void> {
       ...message.options,
     };
 
+    // Run onnxsim before conversion if requested
+    let modelBuffer = message.modelBuffer!;
+    if (options.simplify) {
+      sendProgressToMain('simplifying', 0, '正在简化模型...');
+      try {
+        const py = await initPyodide();
+        const uint8Array = new Uint8Array(modelBuffer);
+        // Pass bytes directly via pyodide globals to avoid slow JSON serialization
+        py.globals.set('_simplify_input_bytes', uint8Array);
+        const simplifyResultJson = py.runPythonSync(`
+import json, base64, sys
+sys.path.insert(0, '/packages/wasm-converter/python')
+try:
+    from entry import simplify_model
+    b64in = base64.b64encode(bytes(_simplify_input_bytes)).decode('utf-8')
+    result = simplify_model(b64in, True, '{}')
+    result
+except Exception as e:
+    import traceback
+    json.dumps({"success": False, "error": str(e), "traceback": traceback.format_exc()})
+`);
+        py.globals.delete('_simplify_input_bytes');
+        const simplifyResult = JSON.parse(simplifyResultJson);
+        if (simplifyResult.success && simplifyResult.model_base64) {
+          const decodedBuffer = py.runPythonSync(`
+import base64
+base64.b64decode('${simplifyResult.model_base64}')
+`);
+          modelBuffer = (decodedBuffer as any).buffer.slice(
+            (decodedBuffer as any).byteOffset,
+            (decodedBuffer as any).byteOffset + (decodedBuffer as any).byteLength
+          ) as ArrayBuffer;
+          sendProgressToMain('simplifying', 10, '模型简化完成，开始转换...');
+        } else {
+          console.warn('onnxsim simplification failed, continuing with original model:', simplifyResult.error);
+          sendProgressToMain('loading', 5, '简化跳过，继续转换...');
+        }
+      } catch (simplifyErr) {
+        console.warn('onnxsim error, continuing with original model:', simplifyErr);
+        sendProgressToMain('loading', 5, '简化跳过，继续转换...');
+      }
+    }
+
     if (options.targetFormat !== 'tflite') {
       sendProgressToMain('loading', 18, `正在装载 ${options.targetFormat} 工具链...`);
       await ensureRuntimeToolchainLoaded(options.targetFormat);
@@ -821,7 +869,7 @@ async function handleConvert(message: ConversionMessage): Promise<void> {
 
       const raw = await convertWithRuntimeToolchain(
         options.targetFormat,
-        new Uint8Array(message.modelBuffer),
+        new Uint8Array(modelBuffer),
         JSON.stringify(options)
       );
       const result = JSON.parse(raw);
@@ -890,7 +938,7 @@ async function handleConvert(message: ConversionMessage): Promise<void> {
     sendProgressToMain('loading', 10, '正在准备模型...');
 
     // Convert buffer to base64 for Python
-    const base64Data = arrayBufferToBase64(message.modelBuffer);
+    const base64Data = arrayBufferToBase64(modelBuffer);
 
     sendProgressToMain('converting', 40, '开始转换...');
 
@@ -1162,8 +1210,87 @@ base64.b64decode('${result.model_base64}')
 }
 
 /**
- * Send error message to main thread.
+ * Handle PaddlePaddle → ONNX pre-processing conversion.
  */
+async function handlePaddleToOnnx(message: ConversionMessage): Promise<void> {
+  if (!message.modelBuffer) {
+    sendError('No model buffer provided for paddle2onnx');
+    return;
+  }
+
+  try {
+    const py = await initPyodide();
+
+    sendProgressToMain('paddle2onnx', 0, '开始 PaddlePaddle → ONNX 转换...');
+
+    // Encode model bytes to base64
+    const modelArray = new Uint8Array(message.modelBuffer);
+    const modelBase64 = py.runPythonSync(`
+import base64
+base64.b64encode(bytes(${JSON.stringify(Array.from(modelArray))})).decode('utf-8')
+`) as string;
+
+    sendProgressToMain('paddle2onnx', 20, '模型文件已加载，开始转换...');
+
+    // Encode params bytes to base64 if provided
+    let paramsBase64Arg = 'None';
+    if (message.paramsBuffer && message.paramsBuffer.byteLength > 0) {
+      const paramsArray = new Uint8Array(message.paramsBuffer);
+      const paramsBase64 = py.runPythonSync(`
+import base64
+base64.b64encode(bytes(${JSON.stringify(Array.from(paramsArray))})).decode('utf-8')
+`) as string;
+      paramsBase64Arg = `'${paramsBase64}'`;
+    }
+
+    sendProgressToMain('paddle2onnx', 40, '调用 paddle2onnx 转换器...');
+
+    const resultJson = py.runPythonSync(`
+import json, sys
+sys.path.insert(0, '/packages/wasm-converter/python')
+
+try:
+    from entry import convert_paddle_to_onnx
+    result = convert_paddle_to_onnx('${modelBase64}', ${paramsBase64Arg}, 13)
+    result
+except Exception as e:
+    import traceback
+    json.dumps({"success": False, "error": str(e), "traceback": traceback.format_exc()})
+`) as string;
+
+    const result = JSON.parse(resultJson);
+
+    if (!result.success) {
+      sendError(result.error || 'PaddlePaddle → ONNX conversion failed', result);
+      return;
+    }
+
+    sendProgressToMain('paddle2onnx', 80, '解码 ONNX 输出...');
+
+    const decodedBuffer = py.runPythonSync(`
+import base64
+base64.b64decode('${result.onnx_base64}')
+`);
+    const onnxBuffer = (decodedBuffer as any).buffer.slice(
+      (decodedBuffer as any).byteOffset,
+      (decodedBuffer as any).byteOffset + (decodedBuffer as any).byteLength
+    ) as ArrayBuffer;
+
+    sendProgressToMain('done', 100, result.message || 'PaddlePaddle → ONNX 转换完成');
+
+    const resultMsg: ResultMessage = {
+      type: 'result',
+      buffer: onnxBuffer,
+      result: { success: true, message: result.message, onnx_size: result.onnx_size },
+      filename: 'converted.onnx',
+    };
+    self.postMessage(resultMsg, [onnxBuffer]);
+  } catch (error) {
+    sendError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+
 function sendError(error: string, details?: any): void {
   const errorMsg: ResultMessage = {
     type: 'error',
@@ -1217,6 +1344,9 @@ self.onmessage = async (event: MessageEvent<ConversionMessage>) => {
       break;
     case 'simplify':
       await handleSimplify(message);
+      break;
+    case 'paddle2onnx':
+      await handlePaddleToOnnx(message);
       break;
     default:
       sendError(`Unknown message type: ${message.type}`);

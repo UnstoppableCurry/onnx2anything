@@ -26,6 +26,7 @@ export interface ConversionOptions {
   targetFormat: string;
   quantization: string;
   optimization: boolean;
+  simplify?: boolean;
 }
 
 export interface ConversionResult {
@@ -48,7 +49,7 @@ export interface RuntimeInfo {
 }
 
 interface WorkerMessage {
-  type: 'progress' | 'result' | 'error' | 'ready';
+  type: 'progress' | 'result' | 'error' | 'ready' | 'paddle2onnxResult';
   stage?: string;
   percent?: number;
   message?: string;
@@ -66,6 +67,10 @@ function deferToast(callback: () => void) {
 export function useConversion() {
   const workerRef = useRef<Worker | null>(null);
   const conversionInFlightRef = useRef(false);
+  const paddleResolverRef = useRef<{
+    resolve: (buf: ArrayBuffer) => void;
+    reject: (err: Error) => void;
+  } | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [progress, setProgress] = useState<ConversionProgress>({
@@ -116,6 +121,12 @@ export function useConversion() {
             percent: 100,
             message: '转换完成！',
           });
+          // If this result is for a pending paddle2onnx call, resolve the promise
+          if (paddleResolverRef.current && data.buffer) {
+            paddleResolverRef.current.resolve(data.buffer);
+            paddleResolverRef.current = null;
+            break;
+          }
           if (data.buffer && data.filename) {
             const conversionResult = data.result as Record<string, any> | undefined;
             setResult({
@@ -142,6 +153,11 @@ export function useConversion() {
             message: '转换失败',
           });
           setError(data.error || '未知错误');
+          // Reject any pending paddle2onnx promise
+          if (paddleResolverRef.current) {
+            paddleResolverRef.current.reject(new Error(data.error || '未知错误'));
+            paddleResolverRef.current = null;
+          }
           deferToast(() => toast.error(`转换失败: ${data.error}`));
           break;
       }
@@ -230,11 +246,46 @@ export function useConversion() {
           targetFormat: options.targetFormat,
           quantization: options.quantization,
           optimization: options.optimization,
+          options: { simplify: options.simplify ?? false },
         },
         [transferableModelBuffer]
       );
     },
     [isReady, runtimeInfo]
+  );
+
+  const convertPaddleToOnnx = useCallback(
+    async (modelBuffer: ArrayBuffer, paramsBuffer?: ArrayBuffer): Promise<ArrayBuffer> => {
+      if (!workerRef.current) {
+        throw new Error('转换器尚未初始化');
+      }
+      if (!isReady) {
+        throw new Error('转换环境尚未就绪，请稍后重试');
+      }
+      if (paddleResolverRef.current) {
+        throw new Error('PaddlePaddle 转换正在进行中');
+      }
+
+      return new Promise<ArrayBuffer>((resolve, reject) => {
+        paddleResolverRef.current = { resolve, reject };
+
+        const modelCopy = modelBuffer.slice(0);
+        const transferables: ArrayBuffer[] = [modelCopy];
+        const msg: Record<string, unknown> = {
+          type: 'paddle2onnx',
+          modelBuffer: modelCopy,
+        };
+
+        if (paramsBuffer && paramsBuffer.byteLength > 0) {
+          const paramsCopy = paramsBuffer.slice(0);
+          transferables.push(paramsCopy);
+          msg.paramsBuffer = paramsCopy;
+        }
+
+        workerRef.current!.postMessage(msg, transferables);
+      });
+    },
+    [isReady]
   );
 
   const reset = useCallback(() => {
@@ -275,6 +326,7 @@ export function useConversion() {
     result,
     runtimeInfo,
     startConversion,
+    convertPaddleToOnnx,
     downloadResult,
     reset,
   };

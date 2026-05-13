@@ -19,6 +19,7 @@ export interface ConversionOptions {
   inputShape?: string;
   calibrateDataset?: 'none' | 'random' | 'custom';
   verboseLogging: boolean;
+  simplify: boolean;
 }
 
 export interface ConverterPanelProps {
@@ -40,6 +41,21 @@ export const DEFAULT_OPTIONS: ConversionOptions = {
   dynamicShapes: false,
   calibrateDataset: 'random',
   verboseLogging: false,
+  simplify: false,
+};
+
+const QUANTIZATION_OPTIONS: Record<string, QuantizationType[]> = {
+  ncnn: ['none'],
+  mnn: ['none', 'fp16', 'int8'],
+  tnn: ['none', 'fp16'],
+  tengine: ['none'],
+};
+
+const QUANTIZATION_LABELS: Record<QuantizationType, string> = {
+  none: '无量化',
+  fp16: 'FP16 半精度',
+  int8: 'INT8 整数量化',
+  dynamic: '动态量化',
 };
 
 export const ConverterPanel: React.FC<ConverterPanelProps> = ({
@@ -52,6 +68,9 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
   isReady = true,
   className,
 }) => {
+  const quantOptions = QUANTIZATION_OPTIONS[options.targetFormat] ?? ['none'];
+  const showQuantSelect = quantOptions.length > 1;
+
   return (
     <div className={cn('space-y-5', className)}>
       <div className="space-y-3">
@@ -67,7 +86,11 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
             const format = event.target.value;
             const formatInfo = formats.find((entry) => entry.id === format);
             if (formatInfo && isToolchainSelectable(formatInfo)) {
-              onOptionsChange({ ...options, targetFormat: format });
+              const newQuantOptions = QUANTIZATION_OPTIONS[format] ?? ['none'];
+              const newQuantization = newQuantOptions.includes(options.quantization)
+                ? options.quantization
+                : 'none';
+              onOptionsChange({ ...options, targetFormat: format, quantization: newQuantization });
             }
           }}
           disabled={isConverting || formats.length === 0}
@@ -88,6 +111,50 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
         <p className="text-xs text-muted-foreground">
           不知道选哪个就保持默认：<span className="font-medium text-foreground">NCNN</span>。
         </p>
+      </div>
+
+      {showQuantSelect && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">量化选项</label>
+          <select
+            value={options.quantization}
+            name="quantization"
+            data-testid="quantization-select"
+            onChange={(event) => {
+              onOptionsChange({ ...options, quantization: event.target.value as QuantizationType });
+            }}
+            disabled={isConverting}
+            className={cn(
+              'w-full rounded-lg border border-border bg-background px-3 py-3 text-sm',
+              'focus:outline-none focus:ring-2 focus:ring-primary/30',
+              isConverting && 'cursor-not-allowed opacity-60'
+            )}
+          >
+            {quantOptions.map((q) => (
+              <option key={q} value={q}>{QUANTIZATION_LABELS[q] ?? q}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+        <input
+          type="checkbox"
+          id="simplify-checkbox"
+          data-testid="simplify-checkbox"
+          checked={options.simplify}
+          onChange={(event) => onOptionsChange({ ...options, simplify: event.target.checked })}
+          disabled={isConverting}
+          className="mt-0.5 h-4 w-4 cursor-pointer rounded border-border accent-primary"
+        />
+        <div>
+          <label htmlFor="simplify-checkbox" className="text-sm font-medium cursor-pointer">
+            转换前简化模型 (onnxsim)
+          </label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            使用 onnx-simplifier 移除冗余节点，可提升转换成功率
+          </p>
+        </div>
       </div>
 
       <button
