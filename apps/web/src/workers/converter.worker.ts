@@ -117,6 +117,61 @@ type BridgeOutput = {
   error?: string;
 };
 
+const OOM_ERROR_PATTERNS = [
+  /out of memory/i,
+  /memory access out of bounds/i,
+  /cannot enlarge memory/i,
+  /allocation failed/i,
+  /oom/i,
+];
+
+function isLikelyOutOfMemoryError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return OOM_ERROR_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function getNativeFallbackHint(formatId: string): string | undefined {
+  switch (formatId) {
+    case 'mnn':
+      return '可改用 `npm run export:mnn:auto -- <baseUrl> <modelPath> <outPath>` 自动切到容器内 native MNNConvert。';
+    case 'openvino':
+      return '可改用 `npm run export:openvino:native -- <modelPath> <outPath>` 走 native OpenVINO 导出。';
+    case 'paddlelite':
+      return '可改用 `npm run export:paddlelite:native -- <modelPath> <outPath>` 走 native Paddle Lite 导出。';
+    case 'tflite':
+      return '可改用 `npm run export:tflite:native -- <modelPath> <outPath>` 走 native TFLite 导出。';
+    default:
+      return undefined;
+  }
+}
+
+function formatConversionError(formatId: string, error: string): string {
+  const fallbackHint = getNativeFallbackHint(formatId);
+
+  if (formatId === 'ncnn' && /divide by zero/i.test(error)) {
+    return [
+      '当前这个 ONNX 模型无法通过 NCNN 浏览器转换链。',
+      '',
+      '底层 onnx2ncnn 在处理该模型时触发了 `divide by zero`，这通常是模型结构/算子兼容性问题，不是你操作错了。',
+      '',
+      '建议：',
+      '1. 先改用 MNN（这个模型已实测可转）',
+      '2. 若必须导出 NCNN，优先尝试 pnnx / native NCNN 工具链',
+    ].join('\n');
+  }
+
+  if (isLikelyOutOfMemoryError(error) && fallbackHint) {
+    return `${error}\n\n检测到浏览器侧可能发生 OOM。${fallbackHint}`;
+  }
+
+  if (fallbackHint && formatId !== 'mnn') {
+    return `${error}\n\n如需继续转换，${fallbackHint}`;
+  }
+
+  return error;
+}
+
+
 function bytesToBase64(bytes: Uint8Array): string {
   const chunkSize = 0x8000;
   let binary = '';
@@ -358,7 +413,7 @@ async function convertWithRuntimeToolchain(
 }
 
 function callStrictToolchain(
-  key: 'ncnnConvert' | 'mnnConvert' | 'openvinoConvert' | 'paddleliteConvert',
+  key: 'ncnnConvert' | 'mnnConvert' | 'openvinoConvert' | 'paddleliteConvert' | 'tnnConvert',
   formatName: string,
   modelInput: string | Uint8Array,
   optionsJson: string
@@ -400,6 +455,10 @@ function openvinoWasmConvert(onnxBase64: string, optionsJson: string): string {
 
 function paddleliteWasmConvert(onnxBase64: string, optionsJson: string): string {
   return callStrictToolchain('paddleliteConvert', 'PaddleLite', onnxBase64, optionsJson);
+}
+
+function tnnWasmConvert(onnxBase64: string, optionsJson: string): string {
+  return callStrictToolchain('tnnConvert', 'TNN', onnxBase64, optionsJson);
 }
 
 function genericWasmConvert(
@@ -466,6 +525,7 @@ async function initPyodide(): Promise<WorkerPyodide> {
       mnn_wasm_convert: mnnWasmConvert,
       openvino_wasm_convert: openvinoWasmConvert,
       paddlelite_wasm_convert: paddleliteWasmConvert,
+      tnn_wasm_convert: tnnWasmConvert,
       convert_with_toolchain: genericWasmConvert,
     });
 
@@ -758,7 +818,10 @@ async function handleConvert(message: ConversionMessage): Promise<void> {
       const result = JSON.parse(raw);
 
       if (!result.success) {
-        sendError(result.error || 'Conversion failed', result);
+        sendError(
+          formatConversionError(options.targetFormat, result.error || 'Conversion failed'),
+          result
+        );
         return;
       }
 
@@ -771,6 +834,12 @@ async function handleConvert(message: ConversionMessage): Promise<void> {
           { name: 'model.bin', data: base64ToBytes(result.bin_base64) },
         ]);
         filename = 'model.ncnn.zip';
+      } else if (result.proto_base64 && result.model_base64) {
+        outputBytes = createZip([
+          { name: 'model.tnnproto', data: base64ToBytes(result.proto_base64) },
+          { name: 'model.tnnmodel', data: base64ToBytes(result.model_base64) },
+        ]);
+        filename = 'model.tnn.zip';
       } else if (result.output_base64) {
         outputBytes = base64ToBytes(result.output_base64);
       } else {
@@ -890,7 +959,12 @@ base64.b64decode('${result.model_base64}')
     }
 
   } catch (error) {
-    sendError(error instanceof Error ? error.message : String(error));
+    sendError(
+      formatConversionError(
+        message.targetFormat || 'tflite',
+        error instanceof Error ? error.message : String(error)
+      )
+    );
   } finally {
     conversionInFlight = false;
   }
