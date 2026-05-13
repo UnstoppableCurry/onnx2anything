@@ -1,6 +1,6 @@
 
 # Auto-generated Python package loader for Pyodide
-# Generated: 2026-05-13T15:15:00.526Z
+# Generated: 2026-05-13T18:19:41.958Z
 
 __file_map__ = {}
 

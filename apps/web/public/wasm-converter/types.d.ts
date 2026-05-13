@@ -1,6 +1,6 @@
 
 // Auto-generated TypeScript types for WASM Converter
-// Generated: 2026-05-13T15:15:00.526Z
+// Generated: 2026-05-13T18:19:41.958Z
 
 export interface PythonModule {
   path: string;

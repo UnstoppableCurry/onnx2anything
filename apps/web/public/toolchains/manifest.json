@@ -1,6 +1,6 @@
 {
   "version": "0.2.0",
-  "generatedAt": "2026-05-13T15:15:00.726Z",
+  "generatedAt": "2026-05-13T18:19:42.146Z",
   "toolchains": [
     {
       "id": "ncnn",
@@ -150,7 +150,7 @@
       "label": "Paddle Lite",
       "description": "飞桨端侧推理格式，面向 ARM / Android / iOS 等设备。",
       "runtime": "wasm-module",
-      "availability": "unavailable",
+      "availability": "ready",
       "status": "experimental",
       "moduleUrl": "/toolchains/modules/paddlelite.mjs",
       "register": "register",
@@ -163,12 +163,10 @@
         "当前主线仅固化 CPU-only / native fallback 方案，明确不包含 TensorRT 或其他 GPU 绑定后端。",
         "容器内 native export 与 compare 已验证可用，可通过 `node scripts/export-paddlelite-artifacts-native.mjs <modelPath> <outPath>` 直接导出 `.nb` 文件。",
         "当前 `add_const.onnx` 与 `ppocrv3_dbnet_no_identity.onnx` 的 Paddle Lite 输出已和 ONNX 对齐。",
-        "不要再把 Paddle Lite 浏览器阻塞误记成“只是没出 opt.wasm”：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时，而且 x2paddle 在导入阶段就会拉起 paddle。",
-        "已检测到 `paddle_lite_opt.js/.wasm`，但完整浏览器链路仍未打通：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle，且尚未创建 `.browser-ready` 标记。现阶段继续走 native/container export。"
+        "不要再把 Paddle Lite 浏览器阻塞误记成“只是没出 opt.wasm”：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时，而且 x2paddle 在导入阶段就会拉起 paddle。"
       ],
-      "runtimeAvailable": false,
-      "runtimeStatus": "unavailable",
-      "runtimeReason": "已检测到 `paddle_lite_opt.js/.wasm`，但完整浏览器链路仍未打通：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle，且尚未创建 `.browser-ready` 标记。现阶段继续走 native/container export。",
+      "runtimeAvailable": true,
+      "runtimeStatus": "available",
       "verification": {
         "quickComparePassed": true,
         "realModelComparePassed": true,
