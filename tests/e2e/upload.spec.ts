@@ -20,7 +20,7 @@ test.describe('网站 demo 基础交互', () => {
       .locator('option')
       .evaluateAll((items) => items.map((item) => (item as HTMLOptionElement).value));
 
-    expect(options).toEqual(['ncnn', 'mnn']);
+    expect(options).toEqual(['ncnn', 'mnn', 'tnn', 'tengine']);
   });
 
   test('上传 ONNX 后会显示模型摘要并可重置', async ({ page }) => {

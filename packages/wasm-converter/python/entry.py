@@ -26,6 +26,8 @@ try:
         NCNNConverter,
         MNNConverter,
         PaddleLiteConverter,
+        TNNConverter,
+        TengineConverter,
     )
     CONVERTERS_AVAILABLE = True
 except ImportError as e:
@@ -91,6 +93,8 @@ def _ensure_directories():
         '/tmp/onnx_ncnn',
         '/tmp/onnx_mnn',
         '/tmp/onnx_paddlelite',
+        '/tmp/onnx_tnn',
+        '/tmp/onnx_tengine',
     ]
     for d in dirs:
         os.makedirs(d, exist_ok=True)
@@ -306,7 +310,7 @@ def convert_model(model_buffer: Union[bytes, str],
 
     Args:
         model_buffer: Model data as bytes or base64 string
-        target_format: Target format ('tflite', 'openvino', 'ncnn', 'mnn', 'paddlelite')
+        target_format: Target format ('tflite', 'openvino', 'ncnn', 'mnn', 'paddlelite', 'tnn')
         is_base64: Whether the buffer is base64 encoded
         options: JSON string with conversion options
 
@@ -379,6 +383,10 @@ def convert_model(model_buffer: Union[bytes, str],
             result = _convert_to_mnn(model_to_convert, opts, logger)
         elif target_format in ("paddlelite", "paddle_lite"):
             result = _convert_to_paddlelite(model_to_convert, opts, logger)
+        elif target_format == "tnn":
+            result = _convert_to_tnn(model_to_convert, opts, logger)
+        elif target_format == "tengine":
+            result = _convert_to_tengine(model_to_convert, opts, logger)
         else:
             result = _convert_with_toolchain_bridge(target_format, model_to_convert, opts, logger)
 
@@ -465,6 +473,10 @@ def convert_model_from_path(input_path: str,
             result = _convert_to_mnn(model_to_convert, opts, logger)
         elif target_format in ("paddlelite", "paddle_lite"):
             result = _convert_to_paddlelite(model_to_convert, opts, logger)
+        elif target_format == "tnn":
+            result = _convert_to_tnn(model_to_convert, opts, logger)
+        elif target_format == "tengine":
+            result = _convert_to_tengine(model_to_convert, opts, logger)
         else:
             result = {
                 "success": False,
@@ -608,6 +620,34 @@ def _convert_to_paddlelite(onnx_path: str, options: Dict, logger: JSLogger) -> D
     return converter.convert(onnx_path, options)
 
 
+def _convert_to_tnn(onnx_path: str, options: Dict, logger: JSLogger) -> Dict:
+    """Internal TNN conversion."""
+    if not CONVERTERS_AVAILABLE:
+        return {
+            "success": False,
+            "error": "TNN converter modules unavailable in WASM runtime.",
+            "wasm_limitation": True,
+            "format": "tnn"
+        }
+
+    converter = TNNConverter(logger=logger)
+    return converter.convert(onnx_path, options)
+
+
+def _convert_to_tengine(onnx_path: str, options: Dict, logger: JSLogger) -> Dict:
+    """Internal Tengine conversion."""
+    if not CONVERTERS_AVAILABLE:
+        return {
+            "success": False,
+            "error": "Tengine converter modules unavailable in WASM runtime.",
+            "wasm_limitation": True,
+            "format": "tengine"
+        }
+
+    converter = TengineConverter(logger=logger)
+    return converter.convert(onnx_path, options)
+
+
 def _convert_with_toolchain_bridge(target_format: str, onnx_path: str, options: Dict, logger: JSLogger) -> Dict:
     """Generic bridge for dynamically registered JS/WASM toolchains."""
     try:
@@ -743,6 +783,8 @@ def get_supported_formats() -> str:
                 "ncnn": NCNNConverter(logger=_module_logger).describe_capability(),
                 "mnn": MNNConverter(logger=_module_logger).describe_capability(),
                 "paddlelite": PaddleLiteConverter(logger=_module_logger).describe_capability(),
+                "tnn": TNNConverter(logger=_module_logger).describe_capability(),
+                "tengine": TengineConverter(logger=_module_logger).describe_capability(),
             }
         except Exception:
             converter_matrix = {}
@@ -793,6 +835,24 @@ def get_supported_formats() -> str:
             "available": converter_matrix.get("paddlelite", {}).get("available", False),
             "artifacts": converter_matrix.get("paddlelite", {}).get("artifacts", ["model.nb"]),
             "reason": converter_matrix.get("paddlelite", {}).get("reason"),
+        },
+        "tnn": {
+            "name": "TNN",
+            "extension": ".tnnproto+.tnnmodel",
+            "wasm_supported": converter_matrix.get("tnn", {}).get("wasm_supported", False),
+            "quantization": converter_matrix.get("tnn", {}).get("quantization", ["none", "fp16"]),
+            "available": converter_matrix.get("tnn", {}).get("available", False),
+            "artifacts": converter_matrix.get("tnn", {}).get("artifacts", ["model.tnnproto", "model.tnnmodel"]),
+            "reason": converter_matrix.get("tnn", {}).get("reason"),
+        },
+        "tengine": {
+            "name": "Tengine",
+            "extension": ".tmfile",
+            "wasm_supported": converter_matrix.get("tengine", {}).get("wasm_supported", False),
+            "quantization": converter_matrix.get("tengine", {}).get("quantization", ["none"]),
+            "available": converter_matrix.get("tengine", {}).get("available", False),
+            "artifacts": converter_matrix.get("tengine", {}).get("artifacts", ["model.tmfile"]),
+            "reason": converter_matrix.get("tengine", {}).get("reason"),
         }
     }
     return json.dumps(formats)

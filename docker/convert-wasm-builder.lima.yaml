@@ -1,0 +1,137 @@
+# =============================================================================
+# convert-wasm-builder/lima.yaml — Ubuntu 22.04 aarch64 + Docker + Emscripten
+#
+# 用途: 编译 ONNX 边端推理框架的 WebAssembly 工具链（TNN、MNN、NCNN 等）
+#
+# 用法:
+#   export LIMA_HOME=/Volumes/ThunderSSD/lima
+#   limactl start --name=convert-wasm-builder /Users/money/Desktop/convert/docker/convert-wasm-builder.lima.yaml
+#   limactl shell convert-wasm-builder
+#   # 然后在 VM 里:
+#   cd /workspace && npm run build:toolchain:tnn
+# =============================================================================
+
+images:
+  - location: "file:///Volumes/ThunderSSD/lima/_cache/jammy-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+cpus: 8
+memory: "12GiB"
+disk: "80GiB"
+
+vmType: "vz"
+vmOpts:
+  vz:
+    rosetta:
+      enabled: true
+      binfmt: true   # 让 Linux 内核透明用 Rosetta 跑 x86_64 二进制
+
+mountType: "virtiofs"
+mounts:
+  - location: "/Users/money/Desktop/convert"
+    mountPoint: "/workspace"
+    writable: true
+  - location: "/tmp/lima-shared"
+    mountPoint: "/mnt/host/tmp"
+    writable: true
+
+# 不需要端口转发，仅构建用
+portForwards: []
+
+containerd:
+  system: false
+  user: false
+
+provision:
+  # 0) 换阿里 ubuntu-ports 镜像源（aarch64 用 ports，国内快）
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      cp /etc/apt/sources.list /etc/apt/sources.list.bak
+      cat > /etc/apt/sources.list <<'EOF'
+      deb https://mirrors.aliyun.com/ubuntu-ports/ jammy main restricted universe multiverse
+      deb https://mirrors.aliyun.com/ubuntu-ports/ jammy-updates main restricted universe multiverse
+      deb https://mirrors.aliyun.com/ubuntu-ports/ jammy-security main restricted universe multiverse
+      deb https://mirrors.aliyun.com/ubuntu-ports/ jammy-backports main restricted universe multiverse
+      EOF
+      apt-get update -y
+      systemctl disable --now apt-news.service esm-cache.service 2>/dev/null || true
+
+  # 1) 装 Docker CE（阿里镜像源）+ 构建依赖
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get install -y ca-certificates curl gnupg git cmake ninja-build python3 python3-pip rsync xz-utils zlib1g-dev
+      # Docker CE
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+        https://mirrors.aliyun.com/docker-ce/linux/ubuntu \
+        $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+        > /etc/apt/sources.list.d/docker.list
+      apt-get update -y
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      systemctl enable --now docker
+      # 把 macOS 映射进来的用户加入 docker group
+      getent passwd | awk -F: '$3 >= 1000 && $3 < 65000 && $7 ~ /(bash|sh|zsh)$/ {print $1}' \
+        | xargs -I{} usermod -aG docker {} 2>/dev/null || true
+      # Docker 镜像加速（国内）
+      mkdir -p /etc/docker
+      cat > /etc/docker/daemon.json <<'EOF'
+      {
+        "registry-mirrors": [
+          "https://docker.m.daocloud.io",
+          "https://docker.1ms.run",
+          "https://hub.rat.dev"
+        ]
+      }
+      EOF
+      systemctl daemon-reload
+      systemctl restart docker
+
+  # 2) 装 Node.js 20（直接从 NodeSource，用阿里镜像）
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+      curl -fsSL https://mirrors.aliyun.com/nodejs-release/v20.19.0/node-v20.19.0-linux-arm64.tar.xz \
+        -o /tmp/node.tar.xz
+      tar -xf /tmp/node.tar.xz -C /usr/local --strip-components=1
+      rm /tmp/node.tar.xz
+      node --version
+      npm --version
+      npm config set registry https://registry.npmmirror.com
+
+  # 3) 安装 Emscripten 3.1.58（WASM 构建核心工具链）
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      cd /opt
+      git clone --depth=1 https://github.com/emscripten-core/emsdk.git
+      cd emsdk
+      ./emsdk install 3.1.58
+      ./emsdk activate 3.1.58
+      echo 'source /opt/emsdk/emsdk_env.sh' >> /etc/profile.d/emsdk.sh
+      chmod 0644 /etc/profile.d/emsdk.sh
+      # 验证
+      source /opt/emsdk/emsdk_env.sh && emcc --version
+
+  # 4) 在 /workspace 安装 npm 依赖（convert 项目）
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux
+      export PATH="/usr/local/bin:$PATH"
+      cd /workspace
+      npm install --prefer-offline 2>&1 | tail -5
+      echo "=== convert-wasm-builder VM ready ==="
+      docker --version
+      node --version
+      source /opt/emsdk/emsdk_env.sh && emcc --version | head -1

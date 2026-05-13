@@ -413,7 +413,7 @@ async function convertWithRuntimeToolchain(
 }
 
 function callStrictToolchain(
-  key: 'ncnnConvert' | 'mnnConvert' | 'openvinoConvert' | 'paddleliteConvert' | 'tnnConvert',
+  key: 'ncnnConvert' | 'mnnConvert' | 'openvinoConvert' | 'paddleliteConvert' | 'tnnConvert' | 'tengineConvert',
   formatName: string,
   modelInput: string | Uint8Array,
   optionsJson: string
@@ -459,6 +459,10 @@ function paddleliteWasmConvert(onnxBase64: string, optionsJson: string): string 
 
 function tnnWasmConvert(onnxBase64: string, optionsJson: string): string {
   return callStrictToolchain('tnnConvert', 'TNN', onnxBase64, optionsJson);
+}
+
+function tengineWasmConvert(onnxBase64: string, optionsJson: string): string {
+  return callStrictToolchain('tengineConvert', 'Tengine', onnxBase64, optionsJson);
 }
 
 function genericWasmConvert(
@@ -526,6 +530,7 @@ async function initPyodide(): Promise<WorkerPyodide> {
       openvino_wasm_convert: openvinoWasmConvert,
       paddlelite_wasm_convert: paddleliteWasmConvert,
       tnn_wasm_convert: tnnWasmConvert,
+      tengine_wasm_convert: tengineWasmConvert,
       convert_with_toolchain: genericWasmConvert,
     });
 
@@ -709,6 +714,10 @@ os.makedirs('/tmp/onnx_paddlelite', exist_ok=True)
   // Load converters/paddlelite_converter.py
   const paddleliteCode = await fetchPythonModule('converters/paddlelite_converter.py');
   py.FS.writeFile('/packages/wasm-converter/python/converters/paddlelite_converter.py', paddleliteCode);
+
+  // Load converters/tengine_converter.py
+  const tengineCode = await fetchPythonModule('converters/tengine_converter.py');
+  py.FS.writeFile('/packages/wasm-converter/python/converters/tengine_converter.py', tengineCode);
 
   // Load utils/model_utils.py
   const utilsCode = await fetchPythonModule('utils/model_utils.py');

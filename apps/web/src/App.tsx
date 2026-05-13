@@ -16,7 +16,7 @@ import {
   isToolchainSelectable,
 } from './utils/toolchains';
 
-const USER_VISIBLE_TOOLCHAIN_IDS = new Set(['tflite', 'ncnn', 'mnn', 'paddlelite']);
+const USER_VISIBLE_TOOLCHAIN_IDS = new Set(['tflite', 'ncnn', 'mnn', 'paddlelite', 'tnn', 'tengine']);
 
 // 转换选项映射
 interface ConversionOptions {

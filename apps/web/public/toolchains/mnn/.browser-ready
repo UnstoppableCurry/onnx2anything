@@ -1,0 +1,1 @@
+2026-04-10: browser MNN wasm verified with add_const.onnx and ppocrv3_dbnet_no_identity.onnx; ONNX parity confirmed via browser-export + native-infer flow.

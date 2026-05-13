@@ -10,7 +10,7 @@ CONTAINER_NAME="${TOOLCHAIN_CONTAINER_NAME:-wasm-builder}"
 TARGET="${1:-}"
 
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: scripts/build-edge-toolchain.sh <ncnn|mnn|openvino|paddlelite>"
+  echo "Usage: scripts/build-edge-toolchain.sh <ncnn|mnn|openvino|paddlelite|tnn>"
   exit 1
 fi
 
@@ -86,9 +86,20 @@ case "$TARGET" in
       echo "Paddle Lite browser toolchain build did not complete. Manifest will keep Paddle Lite as build-required."
     fi
     ;;
+  tnn)
+    set +e
+    docker exec "$CONTAINER_NAME" bash /workspace/scripts/build-tnn-toolchain-inside-container.sh
+    build_status=$?
+    set -e
+    if [ $build_status -eq 0 ]; then
+      echo "TNN browser toolchain build completed."
+    else
+      echo "TNN browser toolchain build did not complete. Manifest will keep TNN as build-required."
+    fi
+    ;;
   *)
     echo "Unknown target: $TARGET"
-    echo "Usage: scripts/build-edge-toolchain.sh <ncnn|mnn|openvino|paddlelite>"
+    echo "Usage: scripts/build-edge-toolchain.sh <ncnn|mnn|openvino|paddlelite|tnn>"
     exit 1
     ;;
 esac

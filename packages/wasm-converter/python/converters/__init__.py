@@ -10,6 +10,7 @@ Supported formats:
     - NCNN
     - MNN
     - Paddle Lite
+    - TNN (Tencent Neural Network)
 
 Note: This package is designed to run in Pyodide (WASM) environment.
 """
@@ -19,6 +20,8 @@ from .openvino_converter import OpenVINOConverter
 from .ncnn_converter import NCNNConverter
 from .mnn_converter import MNNConverter
 from .paddlelite_converter import PaddleLiteConverter
+from .tnn_converter import TNNConverter
+from .tengine_converter import TengineConverter
 
 __version__ = "0.2.0"
 __all__ = [
@@ -27,6 +30,8 @@ __all__ = [
     "NCNNConverter",
     "MNNConverter",
     "PaddleLiteConverter",
+    "TNNConverter",
+    "TengineConverter",
 ]
 
 
@@ -49,6 +54,8 @@ def get_converter(format_name: str):
         "ncnn": NCNNConverter,
         "mnn": MNNConverter,
         "paddlelite": PaddleLiteConverter,
+        "tnn": TNNConverter,
+        "tengine": TengineConverter,
     }
 
     if format_name.lower() not in converters:
@@ -60,7 +67,7 @@ def get_converter(format_name: str):
 
 def get_supported_formats():
     """Get list of supported target formats."""
-    return ["tflite", "openvino", "ncnn", "mnn", "paddlelite"]
+    return ["tflite", "openvino", "ncnn", "mnn", "paddlelite", "tnn", "tengine"]
 
 
 def get_format_info(format_name: str) -> dict:
@@ -112,6 +119,14 @@ def get_format_info(format_name: str) -> dict:
             "file_extension": ".nb/model bundle",
             "quantization": ["none", "fp16", "int8"],
             "platforms": ["Android", "iOS", "ARM Linux"],
+            "wasm_supported": False,
+        },
+        "tnn": {
+            "name": "TNN",
+            "description": "Tencent cross-platform inference framework",
+            "file_extension": ".tnnproto+.tnnmodel",
+            "quantization": ["none", "fp16"],
+            "platforms": ["Android", "iOS", "Linux", "macOS", "Windows"],
             "wasm_supported": False,
         },
     }

@@ -38,8 +38,16 @@ async function loadTnnConverterFactory() {
 
   let patchedSource = sourceText
     .replace(
+      'var _scriptName = import.meta.url;',
+      `var _scriptName = ${JSON.stringify(sourceUrl.toString())};`
+    )
+    .replace(
       'var _scriptDir = import.meta.url;',
       `var _scriptDir = ${JSON.stringify(sourceUrl.toString())};`
+    )
+    .replace(
+      /new Worker\(new URL\(import\.meta\.url\)/g,
+      `new Worker(new URL(${JSON.stringify(sourceUrl.toString())})`
     )
     .replace(
       /const __dirname = new URL\('\.', import\.meta\.url\)\.pathname\.replace\(\/\\\/\$\/, ''\);/,
