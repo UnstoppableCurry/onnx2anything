@@ -45,7 +45,7 @@ export const DEFAULT_OPTIONS: ConversionOptions = {
 };
 
 const QUANTIZATION_OPTIONS: Record<string, QuantizationType[]> = {
-  ncnn: ['none'],
+  ncnn: ['none', 'fp16'],
   mnn: ['none', 'fp16', 'int8'],
   tnn: ['none', 'fp16'],
   tengine: ['none'],

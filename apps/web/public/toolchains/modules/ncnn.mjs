@@ -90,7 +90,7 @@ async function getModuleFactory() {
   return moduleFactoryPromise;
 }
 
-async function loadNcnnOptimizeFactory() {
+async function loadNcnnOptimizeModule() {
   const sourceUrl = new URL('/toolchains/ncnn/ncnnoptimize.js', getToolchainBaseOrigin());
   const sourceText = await fetch(sourceUrl).then((response) => {
     if (!response.ok) {
@@ -99,25 +99,39 @@ async function loadNcnnOptimizeFactory() {
     return response.text();
   });
 
+  const wasmUrl = resolveNcnnOptimizeWasmLocation();
+
+  // ncnnoptimize.js is old-style Emscripten (no export default) — it runs inline and attaches
+  // to a pre-defined Module object. callMain and FS are not exposed; we inject them.
   let patchedSource = sourceText
+    // Inject pre-defined Module with noInitialRun + locateFile + onRuntimeInitialized
     .replace(
-      'var _scriptDir = import.meta.url;',
-      `var _scriptDir = ${JSON.stringify(sourceUrl.toString())};`
+      'var Module=typeof Module!="undefined"?Module:{};',
+      `var __ncnnOptResolve;
+var Module={noInitialRun:true,print:function(){},printErr:function(){console.warn('[ncnnoptimize]',...arguments);},locateFile:function(p){return p.endsWith('.wasm')?${JSON.stringify(wasmUrl)}:p;},onRuntimeInitialized:function(){__ncnnOptResolve(Module);}};
+var __ncnnOptReady=new Promise(function(r){__ncnnOptResolve=r;});`
     )
+    // Expose FS on Module (FS is in-scope at this point)
     .replace(
-      /const __dirname = new URL\('\.', import\.meta\.url\)\.pathname\.replace\(\/\\\/\$\/, ''\);/,
-      `const __dirname = ${JSON.stringify(decodeURIComponent(sourceUrl.pathname.replace(/\/[^/]*$/, '')))};`
+      'Module["FS_createPath"]=FS.createPath;',
+      'Module["FS"]=FS;Module["FS_createPath"]=FS.createPath;'
+    )
+    // Expose callMain on Module (callMain is in-scope at this point)
+    .replace(
+      'Module["run"]=run;',
+      'Module["run"]=run;Module["callMain"]=callMain;'
     );
+  patchedSource += `\nexport default __ncnnOptReady;`;
 
   const dataUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(patchedSource)}`;
-  const module = await import(/* @vite-ignore */ dataUrl);
-  const factory = module.default ?? module;
+  const mod = await import(/* @vite-ignore */ dataUrl);
+  const initializedModule = await (mod.default ?? mod);
 
-  if (typeof factory !== 'function') {
-    throw new Error('ncnnoptimize runtime did not expose a callable module factory');
+  if (!initializedModule || typeof initializedModule.callMain !== 'function') {
+    throw new Error('ncnnoptimize failed to initialize: callMain not available');
   }
 
-  return factory;
+  return initializedModule;
 }
 
 function resolveNcnnOptimizeWasmLocation() {
@@ -128,28 +142,15 @@ function resolveNcnnOptimizeWasmLocation() {
   return wasmUrl.toString();
 }
 
-async function getOptimizeModuleFactory() {
+async function getOptimizeModule() {
   if (!optimizeModuleFactoryPromise) {
-    optimizeModuleFactoryPromise = loadNcnnOptimizeFactory();
+    optimizeModuleFactoryPromise = loadNcnnOptimizeModule();
   }
   return optimizeModuleFactoryPromise;
 }
 
 async function createOptimizeModule() {
-  const createNcnnOptimizeModule = await getOptimizeModuleFactory();
-  return createNcnnOptimizeModule({
-    noInitialRun: true,
-    print: () => {},
-    printErr: (...messages) => {
-      console.warn('[ncnnoptimize]', ...messages);
-    },
-    locateFile(path) {
-      if (path.endsWith('.wasm')) {
-        return resolveNcnnOptimizeWasmLocation();
-      }
-      return resolveNcnnAsset(path);
-    },
-  });
+  return getOptimizeModule();
 }
 
 async function createModule() {

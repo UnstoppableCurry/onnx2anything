@@ -24,21 +24,24 @@ test.describe('转换选项 UI', () => {
     expect(opts.some(o => /int8/i.test(o))).toBe(false);
   });
 
-  test('量化选择器在 NCNN 时不显示', async ({ page }) => {
+  test('量化选择器在 NCNN 时可见，只有 fp16', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('target-format-select').selectOption('ncnn');
-    await expect(page.getByTestId('quantization-select')).not.toBeVisible();
+    const sel = page.getByTestId('quantization-select');
+    await expect(sel).toBeVisible();
+    const opts = await sel.locator('option').allTextContents();
+    expect(opts.some(o => /fp16/i.test(o))).toBe(true);
+    expect(opts.some(o => /int8/i.test(o))).toBe(false);
   });
 
   test('切换格式时量化选项自动重置', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('target-format-select').selectOption('mnn');
     await page.getByTestId('quantization-select').selectOption('fp16');
-    // Switch to ncnn which doesn't support fp16
-    await page.getByTestId('target-format-select').selectOption('ncnn');
-    // quantization-select should not be visible (ncnn has no quant options)
+    // Switch to tengine which has no quant options — selector hides
+    await page.getByTestId('target-format-select').selectOption('tengine');
     await expect(page.getByTestId('quantization-select')).not.toBeVisible();
-    // Switch back to mnn — should be reset to 'none'
+    // Switch back to mnn — should reset to 'none' since tengine has none
     await page.getByTestId('target-format-select').selectOption('mnn');
     const sel = page.getByTestId('quantization-select');
     await expect(sel).toBeVisible();

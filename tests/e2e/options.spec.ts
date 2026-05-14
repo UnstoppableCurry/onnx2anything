@@ -27,6 +27,34 @@ test.describe('转换选项 smoke', () => {
     expect(options.some(o => o.includes('int8') || o.includes('INT8'))).toBe(false);
   });
 
+  test('量化选择器 - NCNN 支持 fp16', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-testid="model-file-input"]').setInputFiles(SMALL_ONNX_MODEL);
+    await page.getByTestId('target-format-select').selectOption('ncnn');
+    const quantSelect = page.getByTestId('quantization-select');
+    await expect(quantSelect).toBeVisible();
+    const options = await quantSelect.locator('option').allTextContents();
+    expect(options.some(o => o.includes('fp16') || o.includes('FP16'))).toBe(true);
+    expect(options.some(o => o.includes('int8') || o.includes('INT8'))).toBe(false);
+  });
+
+  test('NCNN FP16 量化转换可完成', async ({ page }) => {
+    test.setTimeout(300000);
+    await page.goto('/');
+    await page.locator('[data-testid="model-file-input"]').setInputFiles(SMALL_ONNX_MODEL);
+    await expect(page.getByTestId('model-file-card')).toBeVisible();
+    await page.getByTestId('target-format-select').selectOption('ncnn');
+    await expect(page.getByTestId('quantization-select')).toBeVisible();
+    await page.getByTestId('quantization-select').selectOption('fp16');
+    await page.getByTestId('start-conversion').click();
+    await expect(page.getByTestId('conversion-progress')).toBeVisible({ timeout: 10000 });
+    // Wait for either success (download-panel) or error
+    await expect(
+      page.getByTestId('download-panel').or(page.getByTestId('conversion-error'))
+    ).toBeVisible({ timeout: 240000 });
+    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+  });
+
   test('MNN FP16 量化转换可完成', async ({ page }) => {
     await page.goto('/');
     await page.locator('[data-testid="model-file-input"]').setInputFiles(SMALL_ONNX_MODEL);
