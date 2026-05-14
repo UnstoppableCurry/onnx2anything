@@ -122,3 +122,5 @@ tmp/
 # Exception: test fixtures checked in separately
 !tests/fixtures/**/*.onnx
 .github/workflows/
+third_party/Paddle-Lite/
+test_paddle.mjs
