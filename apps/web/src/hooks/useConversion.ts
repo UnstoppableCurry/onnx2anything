@@ -140,7 +140,7 @@ export function useConversion() {
                   : undefined,
               metadata: conversionResult?.metadata,
             });
-            deferToast(() => toast.success('模型转换成功！'));
+            deferToast(() => toast.success('结果已生成'));
           }
           break;
 

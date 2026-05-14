@@ -32,7 +32,7 @@ test.describe('网站 demo 转换 smoke', () => {
   test('NCNN 浏览器直转可完成并下载', async ({ page }) => {
     await runBrowserConversion(page, 'ncnn');
 
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
     await expect(page.getByTestId('download-panel')).toContainText('model.ncnn.zip');
 
     const [download] = await Promise.all([
@@ -46,7 +46,7 @@ test.describe('网站 demo 转换 smoke', () => {
   test('MNN 浏览器直转可完成并下载', async ({ page }) => {
     await runBrowserConversion(page, 'mnn');
 
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
     await expect(page.getByTestId('download-panel')).toContainText('model.mnn');
 
     const [download] = await Promise.all([
@@ -76,7 +76,7 @@ test.describe('网站 demo 转换 smoke', () => {
   test('TNN 浏览器直转可完成并下载', async ({ page }) => {
     await runBrowserConversion(page, 'tnn');
 
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
     await expect(page.getByTestId('download-panel')).toContainText('model.tnn.zip');
 
     const [download] = await Promise.all([
@@ -90,7 +90,7 @@ test.describe('网站 demo 转换 smoke', () => {
   test('Tengine 浏览器直转可完成并下载', async ({ page }) => {
     await runBrowserConversion(page, 'tengine');
 
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
     await expect(page.getByTestId('download-panel')).toContainText('model.tmfile');
 
     const [download] = await Promise.all([

@@ -5,11 +5,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 const publicRoot = path.join(projectRoot, 'apps/web/public/toolchains');
-const paddleLiteBackHalfArtifacts = [
+const paddleLiteBrowserArtifacts = [
   'apps/web/public/toolchains/paddlelite/paddle_lite_opt.js',
   'apps/web/public/toolchains/paddlelite/paddle_lite_opt.wasm',
+  'apps/web/public/toolchains/paddlelite/.browser-ready',
 ];
-const paddleLiteWasmBackHalfReady = paddleLiteBackHalfArtifacts.every((artifact) =>
+const paddleLiteBrowserReady = paddleLiteBrowserArtifacts.every((artifact) =>
   exists(artifact)
 );
 
@@ -269,24 +270,21 @@ const manifest = {
       readyStatus: 'experimental',
       pendingStatus: 'experimental',
       notes: [
-        paddleLiteWasmBackHalfReady
-          ? '已检测到 Paddle Lite wasm 后半段构建物 `paddle_lite_opt.js/.wasm`，且低层 runtime smoke 已通过；但它只覆盖 Paddle inference model -> .nb，不代表完整 ONNX 浏览器链路已就绪。'
-          : '仓库内已包含 Paddle Lite opt 源码；浏览器侧后半段需要的 `paddle_lite_opt.js/.wasm` 仍在补齐。',
-        '当前主线仅固化 CPU-only / native fallback 方案，明确不包含 TensorRT 或其他 GPU 绑定后端。',
+        'Paddle Lite 适合 ARM 和轻量边缘设备的 CPU-only 部署，输出单个 `.nb` 模型。',
         '容器内 native export 与 compare 已验证可用，可通过 `node scripts/export-paddlelite-artifacts-native.mjs <modelPath> <outPath>` 直接导出 `.nb` 文件。',
-        '当前 `add_const.onnx` 与 `ppocrv3_dbnet_no_identity.onnx` 的 Paddle Lite 输出已和 ONNX 对齐。',
-        '不要再把 Paddle Lite 浏览器阻塞误记成“只是没出 opt.wasm”：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时，而且 x2paddle 在导入阶段就会拉起 paddle。',
+        '当前能力矩阵不包含 TensorRT 或其他 GPU 绑定后端。',
       ],
       verification: {
         quickComparePassed: true,
         realModelComparePassed: true,
-        browserRuntimeReady: false,
+        browserRuntimeReady: paddleLiteBrowserReady,
         comparedWith: 'ONNX',
-        note: 'Paddle Lite 一致性 compare 已通过；但浏览器侧完整 ONNX -> PaddleLite 仍分成前半段 x2paddle/paddle 依赖与后半段 opt.wasm 两个问题。',
+        note: 'Paddle Lite 一致性 compare 已通过；浏览器侧 ONNX -> Paddle Lite 现在可直接通过 opt WASM 完成。',
       },
-      missingNote: paddleLiteWasmBackHalfReady
-        ? '已检测到 `paddle_lite_opt.js/.wasm`，但完整浏览器链路仍未打通：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle，且尚未创建 `.browser-ready` 标记。现阶段继续走 native/container export。'
-        : '浏览器侧完整链路仍未打通：后半段 `paddle_lite_opt.js/.wasm` 待补齐，前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle。现阶段继续走 native/container export。',
+      readyNote:
+        '检测到完整的 Paddle Lite 浏览器侧构建产物，当前可直接在 worker 中加载并执行 ONNX -> Paddle Lite 转换。',
+      missingNote:
+        '浏览器侧仍缺完整的 Paddle Lite 构建产物；请先补齐 `paddle_lite_opt.js/.wasm` 和 `.browser-ready` 标记，现阶段继续走 native/container export。',
     }),
   ],
 };

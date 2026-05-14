@@ -34,35 +34,14 @@ test.describe('PaddleLite 格式', () => {
     await expect(convertBtn).toBeEnabled();
   });
 
-  test('ONNX → PaddleLite 转换返回明确错误（非崩溃）', async ({ page }) => {
+  test('ONNX → PaddleLite 浏览器转换会生成可下载的 .nb 文件', async ({ page }) => {
     await uploadAndSelectFormat(page, 'paddlelite');
     await page.getByTestId('start-conversion').click();
     await expect(page.getByTestId('conversion-progress')).toBeVisible();
 
-    // Should show error (not success), since ONNX→PaddleLite is not supported in browser yet
-    await expect(page.getByTestId('conversion-error')).toBeVisible({ timeout: 90000 });
-
-    const errorText = await page.getByTestId('conversion-error').innerText();
-    // Error should be informative (not a generic JS crash)
-    expect(errorText.length).toBeGreaterThan(10);
-    // Should NOT be a generic unhandled JS error
-    expect(errorText).not.toMatch(/TypeError|undefined is not|Cannot read/);
-  });
-
-  test('PaddleLite 转换错误提示含替代方案说明', async ({ page }) => {
-    await uploadAndSelectFormat(page, 'paddlelite');
-    await page.getByTestId('start-conversion').click();
-    await expect(page.getByTestId('conversion-error')).toBeVisible({ timeout: 90000 });
-
-    const errorText = await page.getByTestId('conversion-error').innerText();
-    // Error message should mention either PaddleLite limitation or native export
-    const isInformative =
-      errorText.includes('Paddle') ||
-      errorText.includes('paddle') ||
-      errorText.includes('native') ||
-      errorText.includes('not loaded') ||
-      errorText.includes('unavailable') ||
-      errorText.includes('wasm toolchain');
-    expect(isInformative).toBe(true);
+    await expect(page.getByTestId('download-section')).toBeVisible({ timeout: 120000 });
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
+    await expect(page.getByTestId('download-panel')).toContainText('model.nb');
+    await expect(page.getByTestId('conversion-error')).not.toBeVisible();
   });
 });

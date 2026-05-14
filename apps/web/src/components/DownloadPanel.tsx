@@ -69,6 +69,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
         className
       )}
       data-testid="download-panel"
+      aria-live="polite"
     >
       <div className="p-4 border-b border-border bg-green-50/50 dark:bg-green-900/20">
         <div className="flex items-center gap-3">
@@ -77,10 +78,10 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
           </div>
           <div>
             <h3 className="font-semibold text-green-700 dark:text-green-300">
-              转换成功
+              结果已准备好
             </h3>
             <p className="text-xs text-green-600/80 dark:text-green-400/80">
-              模型已成功转换为 {result.format.toUpperCase()} 格式
+              已生成 {result.format.toUpperCase()} 文件
             </p>
           </div>
         </div>
@@ -92,7 +93,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
             <FileCode className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground mb-0.5">导出文件</p>
+            <p className="text-xs text-muted-foreground mb-0.5">输出文件</p>
             <p className="font-medium truncate">{result.filename}</p>
           </div>
         </div>
@@ -112,7 +113,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          文件仅保存在当前浏览器会话里，下载后再关闭页面。
+          下载后就可以继续换下一个模型。
         </p>
       </div>
 
@@ -125,9 +126,9 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
             'bg-primary text-primary-foreground hover:bg-primary/90',
             'shadow-sm hover:shadow-md transition-all active:scale-[0.98]'
           )}
-        >
+          >
           <Download className="w-5 h-5" />
-          下载转换后的模型
+          下载文件
         </button>
 
         <div className="flex gap-2">
@@ -142,7 +143,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
               )}
             >
               <RotateCcw className="w-4 h-4" />
-              转换其他模型
+              再换一个模型
             </button>
           )}
         </div>

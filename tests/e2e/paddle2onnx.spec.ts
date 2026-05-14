@@ -42,7 +42,7 @@ test.describe('PaddlePaddle 输入格式', () => {
 
     const convertBtn = page.getByTestId('paddle2onnx-convert-btn');
     await expect(convertBtn).toBeVisible();
-    await expect(convertBtn).toContainText('转换为 ONNX');
+    await expect(convertBtn).toContainText('转成 ONNX');
     // Disabled until a .pdmodel file is selected
     await expect(convertBtn).toBeDisabled();
   });
@@ -62,12 +62,14 @@ test.describe('PaddlePaddle 输入格式', () => {
     await page.goto('/');
 
     const uploadSection = page.getByTestId('upload-section');
-    await expect(uploadSection).toContainText('上传 ONNX 模型');
+    await expect(uploadSection).toContainText('1. 放进一个模型');
 
     await page.getByTestId('input-format-paddle').click();
-    await expect(uploadSection).toContainText('上传 PaddlePaddle 模型');
+    await expect(page.getByTestId('paddle-input-panel')).toBeVisible();
+    await expect(uploadSection).toContainText('1. 放进一个模型');
+    await expect(page.getByTestId('pdmodel-upload-label')).toBeVisible();
 
     await page.getByTestId('input-format-onnx').click();
-    await expect(uploadSection).toContainText('上传 ONNX 模型');
+    await expect(page.getByTestId('model-dropzone')).toBeVisible();
   });
 });

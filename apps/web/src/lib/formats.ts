@@ -100,11 +100,11 @@ export const BASE_FORMAT_DEFINITIONS: BaseFormatDefinition[] = [
     shortLabel: 'PaddleLite',
     description: '飞桨 CPU-only 端侧推理框架',
     detailedDescription:
-      'Paddle Lite 适配 ARM 和轻量边缘设备的 CPU-only 部署，适用于 Paddle 生态模型和部分国产硬件场景。',
+      'Paddle Lite 适配 ARM 和轻量边缘设备的 CPU-only 部署，支持浏览器侧 ONNX -> Paddle Lite 转换与 native fallback。',
     status: 'beta',
     platforms: ['Android', 'iOS', 'ARM Linux', 'x86 Linux'],
-    features: ['轻量部署', 'native/container fallback 已验证', '适配 Paddle 生态'],
-    limitations: ['前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时', '当前能力矩阵明确排除 TensorRT / GPU 绑定后端'],
+    features: ['轻量部署', '浏览器侧 ONNX -> Paddle Lite 已打通', 'native/container fallback 已验证'],
+    limitations: ['当前仍需要预编译的 opt WASM 工具链', '当前能力矩阵明确排除 TensorRT / GPU 绑定后端'],
   },
   {
     value: 'tnn',

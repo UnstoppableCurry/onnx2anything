@@ -17,7 +17,7 @@ test.describe('量化转换 smoke', () => {
     }
     await page.getByTestId('start-conversion').click();
     await expect(page.getByTestId('download-panel')).toBeVisible({ timeout: 120000 });
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
   });
 
   test('MNN INT8 量化转换成功', async ({ page }) => {
@@ -30,7 +30,7 @@ test.describe('量化转换 smoke', () => {
     }
     await page.getByTestId('start-conversion').click();
     await expect(page.getByTestId('download-panel')).toBeVisible({ timeout: 120000 });
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
   });
 
   test('TNN FP16 量化转换成功', async ({ page }) => {
@@ -43,6 +43,6 @@ test.describe('量化转换 smoke', () => {
     }
     await page.getByTestId('start-conversion').click();
     await expect(page.getByTestId('download-panel')).toBeVisible({ timeout: 120000 });
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
   });
 });

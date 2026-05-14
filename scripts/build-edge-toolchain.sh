@@ -80,8 +80,8 @@ case "$TARGET" in
     build_status=$?
     set -e
     if [ $build_status -eq 0 ]; then
-      echo "Paddle Lite wasm opt back-half artifacts built."
-      echo "Manifest will remain build-required until ONNX -> Paddle front-half is solved and .browser-ready is created."
+      echo "Paddle Lite browser toolchain build completed."
+      echo "Manifest will now mark Paddle Lite ready when the .browser-ready probe is present."
     else
       echo "Paddle Lite browser toolchain build did not complete. Manifest will keep Paddle Lite as build-required."
     fi

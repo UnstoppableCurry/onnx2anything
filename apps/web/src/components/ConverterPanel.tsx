@@ -76,7 +76,7 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-muted-foreground" />
-          <label className="text-sm font-medium">你想导出成什么格式</label>
+          <label className="text-sm font-medium">想要什么结果</label>
         </div>
         <select
           value={options.targetFormat}
@@ -109,13 +109,13 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
           })}
         </select>
         <p className="text-xs text-muted-foreground">
-          不知道选哪个就保持默认：<span className="font-medium text-foreground">NCNN</span>。
+          不确定的话，先保持默认就好。
         </p>
       </div>
 
       {showQuantSelect && (
         <div className="space-y-2">
-          <label className="text-sm font-medium">量化选项</label>
+          <label className="text-sm font-medium">量化方式</label>
           <select
             value={options.quantization}
             name="quantization"
@@ -149,10 +149,10 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
         />
         <div>
           <label htmlFor="simplify-checkbox" className="text-sm font-medium cursor-pointer">
-            转换前简化模型 (onnxsim)
+            先做一次简化（推荐）
           </label>
           <p className="text-xs text-muted-foreground mt-0.5">
-            使用 onnx-simplifier 移除冗余节点，可提升转换成功率
+            通常能让结果更稳一点
           </p>
         </div>
       </div>
@@ -171,12 +171,12 @@ export const ConverterPanel: React.FC<ConverterPanelProps> = ({
         {isConverting ? (
           <>
             <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-            转换中...
+            正在处理...
           </>
         ) : (
           <>
             <FileArchive className="w-5 h-5" />
-            {isReady ? '开始转换' : '转换环境加载中'}
+            {isReady ? '开始转换' : '正在准备'}
           </>
         )}
       </button>

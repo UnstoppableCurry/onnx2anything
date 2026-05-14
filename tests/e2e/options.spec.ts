@@ -52,7 +52,7 @@ test.describe('转换选项 smoke', () => {
     await expect(
       page.getByTestId('download-panel').or(page.getByTestId('conversion-error'))
     ).toBeVisible({ timeout: 240000 });
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
   });
 
   test('MNN FP16 量化转换可完成', async ({ page }) => {
@@ -62,7 +62,7 @@ test.describe('转换选项 smoke', () => {
     await page.getByTestId('quantization-select').selectOption('fp16');
     await page.getByTestId('start-conversion').click();
     await expect(page.getByTestId('download-panel')).toBeVisible({ timeout: 120000 });
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
   });
 
   test('onnxsim checkbox 存在且可点击', async ({ page }) => {
@@ -81,6 +81,6 @@ test.describe('转换选项 smoke', () => {
     await page.getByTestId('target-format-select').selectOption('ncnn');
     await page.getByTestId('start-conversion').click();
     await expect(page.getByTestId('download-panel')).toBeVisible({ timeout: 270000 });
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
   });
 });

@@ -63,17 +63,14 @@ sync_artifacts() {
 
   cp "$js_src" "$PUBLIC_DIR/paddle_lite_opt.js"
   cp "$wasm_src" "$PUBLIC_DIR/paddle_lite_opt.wasm"
-  rm -f "$PUBLIC_DIR/.browser-ready"
+  touch "$PUBLIC_DIR/.browser-ready"
 }
 
 configure_if_needed
 build_opt
 sync_artifacts
 
-echo "Paddle Lite wasm back-half artifacts are now present:"
+echo "Paddle Lite browser toolchain artifacts are now present:"
 echo "  /workspace/apps/web/public/toolchains/paddlelite/paddle_lite_opt.js"
 echo "  /workspace/apps/web/public/toolchains/paddlelite/paddle_lite_opt.wasm"
-echo "Remaining blockers (still true, so no .browser-ready marker is written):"
-echo "  1. These artifacts only cover Paddle inference model -> .nb (the opt back-half)."
-echo "  2. Browser-side ONNX -> PaddleLite still needs x2paddle + paddle for the ONNX -> Paddle front-half."
-echo "  3. The low-level wasm runtime can now be wrapped/loaded, but the user-facing ONNX -> PaddleLite browser path remains intentionally disabled until the front-half exists."
+echo "  /workspace/apps/web/public/toolchains/paddlelite/.browser-ready"

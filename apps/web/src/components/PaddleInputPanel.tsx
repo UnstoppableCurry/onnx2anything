@@ -147,7 +147,7 @@ export const PaddleInputPanel: React.FC<PaddleInputPanelProps> = ({
             data-testid="pdmodel-upload-label"
           >
             <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="text-sm text-muted-foreground">点击选择 .pdmodel 文件</span>
+            <span className="text-sm text-muted-foreground">选一个 .pdmodel 模型文件</span>
             <input
               ref={pdmodelRef}
               type="file"
@@ -198,7 +198,7 @@ export const PaddleInputPanel: React.FC<PaddleInputPanelProps> = ({
             data-testid="pdiparams-upload-label"
           >
             <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="text-sm text-muted-foreground">点击选择 .pdiparams 文件（静态图模型必须提供）</span>
+            <span className="text-sm text-muted-foreground">如果有 .pdiparams，也一起带上（静态图会用到）</span>
             <input
               ref={pdiparamsRef}
               type="file"
@@ -227,17 +227,17 @@ export const PaddleInputPanel: React.FC<PaddleInputPanelProps> = ({
         {status === 'converting' ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            正在转换为 ONNX...
+            正在转成 ONNX...
           </>
         ) : status === 'done' ? (
           <>
             <CheckCircle className="w-4 h-4" />
-            已转换为 ONNX，重新转换
+            已转成 ONNX，可继续选输出格式
           </>
         ) : (
           <>
             <ArrowRight className="w-4 h-4" />
-            转换为 ONNX
+            转成 ONNX
           </>
         )}
       </button>
@@ -250,7 +250,7 @@ export const PaddleInputPanel: React.FC<PaddleInputPanelProps> = ({
         >
           <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
           <p className="text-sm text-green-700 dark:text-green-300">
-            PaddlePaddle → ONNX 转换成功！可继续选择输出格式。
+            已转成 ONNX，现在可以继续选输出格式。
           </p>
         </div>
       )}

@@ -14,14 +14,14 @@ export type ConversionStage =
   | 'cancelled';
 
 const STAGE_LABELS: Record<ConversionStage, string> = {
-  idle: '等待开始',
-  loading: '加载模型',
-  simplifying: '简化模型',
-  converting: '格式转换',
-  quantizing: '量化优化',
-  finalizing: '完成处理',
-  done: '转换完成',
-  error: '转换失败',
+  idle: '等你开始',
+  loading: '准备中',
+  simplifying: '整理一下',
+  converting: '处理中',
+  quantizing: '做量化',
+  finalizing: '快好了',
+  done: '完成',
+  error: '出问题了',
   cancelled: '已取消',
 };
 
@@ -75,6 +75,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
       className={cn('w-full space-y-4', className)}
       data-testid="conversion-progress"
       data-stage={stage}
+      aria-live="polite"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -99,10 +100,10 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
             <p className="font-medium">{headline}</p>
             <p className="text-xs text-muted-foreground">
               {isError
-                ? '请查看错误信息并重试'
+                ? '看看下面的原因'
                 : isCancelled
-                  ? '转换已被取消'
-                  : message || '正在处理，请稍候'}
+                  ? '这次先停下了'
+                  : message || '浏览器正在处理，别急。'}
             </p>
           </div>
         </div>
@@ -114,7 +115,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
             >
               <X className="w-4 h-4" />
-              取消
+              停一下
             </button>
           )}
           {(isError || isCancelled) && onRetry && (
@@ -123,7 +124,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
-              重试
+              再试一次
             </button>
           )}
         </div>
@@ -132,7 +133,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="font-medium">
-            {isError ? '失败' : isCancelled ? '取消' : `${displayPercent}%`}
+            {isError ? '失败' : isCancelled ? '已停下' : `${displayPercent}%`}
           </span>
           <span className="text-muted-foreground">
             {elapsedTime !== undefined && (
@@ -168,7 +169,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-medium text-destructive">转换失败</p>
+              <p className="font-medium text-destructive">出问题了</p>
               <p className="text-sm text-destructive/80 mt-1 break-words">{error}</p>
             </div>
           </div>
@@ -180,7 +181,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                重试转换
+                再试一次
               </button>
             </div>
           )}

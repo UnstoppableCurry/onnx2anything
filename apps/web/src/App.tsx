@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Toaster } from 'sonner';
 import { Cpu, Github, FileCode, Sparkles } from 'lucide-react';
 
@@ -74,6 +74,8 @@ function App() {
   const [uploaderResetToken, setUploaderResetToken] = useState(0);
   const [options, setOptions] = useState<ConversionOptions>(DEFAULT_OPTIONS);
   const [inputFormat, setInputFormat] = useState<InputFormat>('onnx');
+  const progressSectionRef = useRef<HTMLElement | null>(null);
+  const downloadSectionRef = useRef<HTMLElement | null>(null);
   const {
     toolchains,
     isLoading: isLoadingToolchains,
@@ -177,6 +179,39 @@ function App() {
     runtimeInfo?.formats
   ).filter((toolchain) => USER_VISIBLE_TOOLCHAIN_IDS.has(toolchain.id));
   const readyToolchains = availableToolchains.filter(isToolchainSelectable);
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  useEffect(() => {
+    if (!isConverting && progress.stage === 'idle' && !conversionError) {
+      return;
+    }
+
+    if (
+      !progressSectionRef.current ||
+      (!isConverting && progress.stage !== 'error')
+    ) {
+      return;
+    }
+
+    progressSectionRef.current.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [conversionError, isConverting, prefersReducedMotion, progress.stage]);
+
+  useEffect(() => {
+    if (!result || !downloadSectionRef.current) {
+      return;
+    }
+
+    downloadSectionRef.current.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [prefersReducedMotion, result]);
+
   useEffect(() => {
     if (readyToolchains.length === 0) {
       return;
@@ -237,8 +272,11 @@ function App() {
             data-testid="hero-section"
           >
             <h2 className="text-lg font-semibold tracking-tight">
-              上传 ONNX → 选择格式 → 点击转换
+              把模型放进来，剩下交给浏览器
             </h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+              上传后选个结果格式，页面会带着你一步一步走完，不用盯着底层细节。
+            </p>
 
             {(isLoadingToolchains || toolchainError) && (
               <p className="mt-3 text-xs text-muted-foreground">
@@ -256,7 +294,7 @@ function App() {
             <div className="flex items-center gap-2 mb-4">
               <FileCode className="w-5 h-5 text-primary" />
               <h3 className="font-semibold">
-                1. 上传{inputFormat === 'paddle' ? ' PaddlePaddle' : ' ONNX'} 模型
+                1. 放进一个模型
               </h3>
             </div>
 
@@ -317,7 +355,7 @@ function App() {
                   onFileClear={handleFileClear}
                   disabled={isConverting}
                   resetToken={uploaderResetToken}
-                />
+                  />
 
                 {(selectedFile || isExtractingModelInfo || modelInfoError) && (
                   <div className="mt-3" data-testid="model-summary">
@@ -345,7 +383,7 @@ function App() {
                 {selectedFile && modelBuffer && (
                   <div className="mt-3" data-testid="model-summary">
                     <p className="text-xs text-muted-foreground">
-                      已转换：{selectedFile.name}（ONNX，可继续选择输出格式）
+                      已准备好：{selectedFile.name}（可以继续选结果格式）
                     </p>
                   </div>
                 )}
@@ -359,7 +397,7 @@ function App() {
           >
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">2. 选择输出格式并开始转换</h3>
+              <h3 className="font-semibold">2. 选个结果，开始处理</h3>
             </div>
             <ConverterPanel
               options={options}
@@ -376,8 +414,10 @@ function App() {
             <section
               className="bg-card rounded-2xl border border-border p-6 md:p-7"
               data-testid="progress-section"
+              ref={progressSectionRef}
+              tabIndex={-1}
             >
-              <h3 className="font-semibold mb-4">3. 转换进度</h3>
+              <h3 className="font-semibold mb-4">3. 处理中</h3>
               <ProgressTracker
                 stage={progress.stage}
                 percent={progress.percent}
@@ -393,8 +433,10 @@ function App() {
             <section
               className="bg-card rounded-2xl border border-border p-6 md:p-7"
               data-testid="download-section"
+              ref={downloadSectionRef}
+              tabIndex={-1}
             >
-              <h3 className="font-semibold mb-4">4. 下载结果</h3>
+              <h3 className="font-semibold mb-4">4. 结果好了</h3>
               <DownloadPanel
                 result={{
                   buffer: result.buffer,
@@ -410,7 +452,7 @@ function App() {
 
           {!result && !isConverting && (
             <p className="text-center text-sm text-muted-foreground">
-              转换默认在本地完成，不上传模型。
+              全部在本地完成，文件不会离开你的浏览器。
             </p>
           )}
         </div>

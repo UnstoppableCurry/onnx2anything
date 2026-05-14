@@ -101,13 +101,13 @@ describe('toolchain manifest helpers', () => {
     );
   });
 
-  it('keeps paddlelite limitations aligned with the confirmed front-half blocker', () => {
+  it('keeps paddlelite limitations aligned with the browser-ready opt toolchain', () => {
     const paddlelite = BASE_FORMAT_DEFINITIONS.find(
       (entry) => entry.value === 'paddlelite'
     );
 
     expect(paddlelite?.limitations).toContain(
-      '前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时'
+      '当前仍需要预编译的 opt WASM 工具链'
     );
   });
 
