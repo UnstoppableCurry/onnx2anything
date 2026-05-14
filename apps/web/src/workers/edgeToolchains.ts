@@ -30,7 +30,9 @@ type RuntimeToolchainKey =
   | 'ncnnConvert'
   | 'mnnConvert'
   | 'openvinoConvert'
-  | 'paddleliteConvert';
+  | 'paddleliteConvert'
+  | 'tnnConvert'
+  | 'tengineConvert';
 
 const registeredBridgeCache = new Map<string, Promise<ToolchainBridge>>();
 
@@ -39,6 +41,8 @@ const runtimeToolchainKeyByFormat: Record<string, RuntimeToolchainKey> = {
   mnn: 'mnnConvert',
   openvino: 'openvinoConvert',
   paddlelite: 'paddleliteConvert',
+  tnn: 'tnnConvert',
+  tengine: 'tengineConvert',
 };
 
 async function urlExists(url?: string): Promise<boolean> {

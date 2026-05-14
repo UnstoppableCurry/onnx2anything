@@ -16,7 +16,7 @@ async function uploadOnnxModel(page: Page, visitPage = true) {
 
 async function runBrowserConversion(
   page: Page,
-  targetFormat: 'ncnn' | 'mnn',
+  targetFormat: 'ncnn' | 'mnn' | 'tnn' | 'tengine',
   options?: { visitPage?: boolean }
 ) {
   await uploadOnnxModel(page, options?.visitPage ?? true);
@@ -32,7 +32,7 @@ test.describe('网站 demo 转换 smoke', () => {
   test('NCNN 浏览器直转可完成并下载', async ({ page }) => {
     await runBrowserConversion(page, 'ncnn');
 
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
     await expect(page.getByTestId('download-panel')).toContainText('model.ncnn.zip');
 
     const [download] = await Promise.all([
@@ -46,7 +46,7 @@ test.describe('网站 demo 转换 smoke', () => {
   test('MNN 浏览器直转可完成并下载', async ({ page }) => {
     await runBrowserConversion(page, 'mnn');
 
-    await expect(page.getByTestId('download-panel')).toContainText('转换成功');
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
     await expect(page.getByTestId('download-panel')).toContainText('model.mnn');
 
     const [download] = await Promise.all([
@@ -71,5 +71,33 @@ test.describe('网站 demo 转换 smoke', () => {
     await page.getByTestId('start-conversion').dblclick();
     await expect(page.getByTestId('download-panel')).toBeVisible({ timeout: 120000 });
     await expect(page.getByTestId('download-panel')).toContainText('model.ncnn.zip');
+  });
+
+  test('TNN 浏览器直转可完成并下载', async ({ page }) => {
+    await runBrowserConversion(page, 'tnn');
+
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
+    await expect(page.getByTestId('download-panel')).toContainText('model.tnn.zip');
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('download-result').click(),
+    ]);
+
+    expect(download.suggestedFilename()).toBe('model.tnn.zip');
+  });
+
+  test('Tengine 浏览器直转可完成并下载', async ({ page }) => {
+    await runBrowserConversion(page, 'tengine');
+
+    await expect(page.getByTestId('download-panel')).toContainText('结果已准备好');
+    await expect(page.getByTestId('download-panel')).toContainText('model.tmfile');
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('download-result').click(),
+    ]);
+
+    expect(download.suggestedFilename()).toBe('model.tmfile');
   });
 });

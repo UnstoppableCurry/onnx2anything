@@ -1,11 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Toaster } from 'sonner';
 import { Cpu, Github, FileCode, Sparkles } from 'lucide-react';
 
+import { cn } from './utils/cn';
 import { ModelUploader } from './components/ModelUploader';
 import { ConverterPanel, DEFAULT_OPTIONS } from './components/ConverterPanel';
 import { ProgressTracker } from './components/ProgressTracker';
 import { DownloadPanel } from './components/DownloadPanel';
+import { PaddleInputPanel } from './components/PaddleInputPanel';
 import { useConversion } from './hooks/useConversion';
 import { useModelInfo } from './hooks/useModelInfo';
 import { useToolchainManifest } from './hooks/useToolchainManifest';
@@ -16,7 +18,7 @@ import {
   isToolchainSelectable,
 } from './utils/toolchains';
 
-const USER_VISIBLE_TOOLCHAIN_IDS = new Set(['tflite', 'ncnn', 'mnn', 'paddlelite']);
+const USER_VISIBLE_TOOLCHAIN_IDS = new Set(['tflite', 'ncnn', 'mnn', 'paddlelite', 'tnn', 'tengine']);
 
 // 转换选项映射
 interface ConversionOptions {
@@ -27,7 +29,10 @@ interface ConversionOptions {
   dynamicShapes: boolean;
   calibrateDataset?: 'none' | 'random' | 'custom';
   verboseLogging: boolean;
+  simplify: boolean;
 }
+
+type InputFormat = 'onnx' | 'paddle';
 
 // 暗色模式切换组件
 const ThemeToggle: React.FC = () => {
@@ -68,6 +73,9 @@ function App() {
   const [modelBuffer, setModelBuffer] = useState<ArrayBuffer | null>(null);
   const [uploaderResetToken, setUploaderResetToken] = useState(0);
   const [options, setOptions] = useState<ConversionOptions>(DEFAULT_OPTIONS);
+  const [inputFormat, setInputFormat] = useState<InputFormat>('onnx');
+  const progressSectionRef = useRef<HTMLElement | null>(null);
+  const downloadSectionRef = useRef<HTMLElement | null>(null);
   const {
     toolchains,
     isLoading: isLoadingToolchains,
@@ -82,6 +90,7 @@ function App() {
     result,
     runtimeInfo,
     startConversion,
+    convertPaddleToOnnx,
     downloadResult,
     reset: resetConversion,
   } = useConversion();
@@ -124,6 +133,18 @@ function App() {
     resetConversion();
   }, [resetModelInfo, resetConversion]);
 
+  const handlePaddleOnnxReady = useCallback(
+    (onnxBuffer: ArrayBuffer, filename: string) => {
+      setModelBuffer(onnxBuffer);
+      // Create a synthetic File-like object for display purposes
+      const blob = new Blob([onnxBuffer], { type: 'application/octet-stream' });
+      const syntheticFile = new File([blob], filename, { type: 'application/octet-stream' });
+      setSelectedFile(syntheticFile);
+      resetConversion();
+    },
+    [resetConversion]
+  );
+
   const handleConvert = useCallback(() => {
     if (!modelBuffer) return;
 
@@ -132,6 +153,7 @@ function App() {
       targetFormat: options.targetFormat,
       quantization: options.quantization,
       optimization: options.optimization,
+      simplify: options.simplify,
     };
 
     startConversion(modelBuffer, conversionOptions);
@@ -142,6 +164,7 @@ function App() {
     setModelBuffer(null);
     setUploaderResetToken((value) => value + 1);
     setOptions(DEFAULT_OPTIONS);
+    setInputFormat('onnx');
     resetModelInfo();
     resetConversion();
   }, [resetModelInfo, resetConversion]);
@@ -156,6 +179,39 @@ function App() {
     runtimeInfo?.formats
   ).filter((toolchain) => USER_VISIBLE_TOOLCHAIN_IDS.has(toolchain.id));
   const readyToolchains = availableToolchains.filter(isToolchainSelectable);
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  useEffect(() => {
+    if (!isConverting && progress.stage === 'idle' && !conversionError) {
+      return;
+    }
+
+    if (
+      !progressSectionRef.current ||
+      (!isConverting && progress.stage !== 'error')
+    ) {
+      return;
+    }
+
+    progressSectionRef.current.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [conversionError, isConverting, prefersReducedMotion, progress.stage]);
+
+  useEffect(() => {
+    if (!result || !downloadSectionRef.current) {
+      return;
+    }
+
+    downloadSectionRef.current.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [prefersReducedMotion, result]);
+
   useEffect(() => {
     if (readyToolchains.length === 0) {
       return;
@@ -216,8 +272,11 @@ function App() {
             data-testid="hero-section"
           >
             <h2 className="text-lg font-semibold tracking-tight">
-              上传 ONNX → 选择格式 → 点击转换
+              把模型放进来，剩下交给浏览器
             </h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+              上传后选个结果格式，页面会带着你一步一步走完，不用盯着底层细节。
+            </p>
 
             {(isLoadingToolchains || toolchainError) && (
               <p className="mt-3 text-xs text-muted-foreground">
@@ -234,28 +293,101 @@ function App() {
           >
             <div className="flex items-center gap-2 mb-4">
               <FileCode className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">1. 上传 ONNX 模型</h3>
+              <h3 className="font-semibold">
+                1. 放进一个模型
+              </h3>
             </div>
-            <ModelUploader
-              key={`model-uploader-${uploaderResetToken}`}
-              onFileSelect={handleFileSelect}
-              onFileClear={handleFileClear}
-              disabled={isConverting}
-              resetToken={uploaderResetToken}
-            />
 
-            {(selectedFile || isExtractingModelInfo || modelInfoError) && (
-              <div className="mt-3" data-testid="model-summary">
-                <p className="text-xs text-muted-foreground">
-                  {isExtractingModelInfo
-                    ? '正在读取模型...'
-                    : modelInfoError
-                      ? `模型读取失败：${modelInfoError}`
-                      : selectedFile
-                        ? `已选择：${selectedFile.name}`
-                        : ''}
-                </p>
-              </div>
+            {/* Input format selector */}
+            <div
+              className="flex items-center gap-1 p-1 bg-muted rounded-lg mb-4 w-fit"
+              data-testid="input-format-selector"
+            >
+              <button
+                onClick={() => {
+                  if (inputFormat !== 'onnx') {
+                    setInputFormat('onnx');
+                    setSelectedFile(null);
+                    setModelBuffer(null);
+                    setUploaderResetToken((v) => v + 1);
+                    resetConversion();
+                  }
+                }}
+                disabled={isConverting}
+                data-testid="input-format-onnx"
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                  inputFormat === 'onnx'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                ONNX
+              </button>
+              <button
+                onClick={() => {
+                  if (inputFormat !== 'paddle') {
+                    setInputFormat('paddle');
+                    setSelectedFile(null);
+                    setModelBuffer(null);
+                    setUploaderResetToken((v) => v + 1);
+                    resetConversion();
+                  }
+                }}
+                disabled={isConverting}
+                data-testid="input-format-paddle"
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                  inputFormat === 'paddle'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                PaddlePaddle
+              </button>
+            </div>
+
+            {inputFormat === 'onnx' ? (
+              <>
+                <ModelUploader
+                  key={`model-uploader-${uploaderResetToken}`}
+                  onFileSelect={handleFileSelect}
+                  onFileClear={handleFileClear}
+                  disabled={isConverting}
+                  resetToken={uploaderResetToken}
+                  />
+
+                {(selectedFile || isExtractingModelInfo || modelInfoError) && (
+                  <div className="mt-3" data-testid="model-summary">
+                    <p className="text-xs text-muted-foreground">
+                      {isExtractingModelInfo
+                        ? '正在读取模型...'
+                        : modelInfoError
+                          ? `模型读取失败：${modelInfoError}`
+                          : selectedFile
+                            ? `已选择：${selectedFile.name}`
+                            : ''}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <PaddleInputPanel
+                  key={`paddle-panel-${uploaderResetToken}`}
+                  onOnnxReady={handlePaddleOnnxReady}
+                  convertPaddleToOnnx={convertPaddleToOnnx}
+                  disabled={isConverting}
+                  resetToken={uploaderResetToken}
+                />
+                {selectedFile && modelBuffer && (
+                  <div className="mt-3" data-testid="model-summary">
+                    <p className="text-xs text-muted-foreground">
+                      已准备好：{selectedFile.name}（可以继续选结果格式）
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </section>
 
@@ -265,7 +397,7 @@ function App() {
           >
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">2. 选择输出格式并开始转换</h3>
+              <h3 className="font-semibold">2. 选个结果，开始处理</h3>
             </div>
             <ConverterPanel
               options={options}
@@ -282,8 +414,10 @@ function App() {
             <section
               className="bg-card rounded-2xl border border-border p-6 md:p-7"
               data-testid="progress-section"
+              ref={progressSectionRef}
+              tabIndex={-1}
             >
-              <h3 className="font-semibold mb-4">3. 转换进度</h3>
+              <h3 className="font-semibold mb-4">3. 处理中</h3>
               <ProgressTracker
                 stage={progress.stage}
                 percent={progress.percent}
@@ -299,8 +433,10 @@ function App() {
             <section
               className="bg-card rounded-2xl border border-border p-6 md:p-7"
               data-testid="download-section"
+              ref={downloadSectionRef}
+              tabIndex={-1}
             >
-              <h3 className="font-semibold mb-4">4. 下载结果</h3>
+              <h3 className="font-semibold mb-4">4. 结果好了</h3>
               <DownloadPanel
                 result={{
                   buffer: result.buffer,
@@ -316,7 +452,7 @@ function App() {
 
           {!result && !isConverting && (
             <p className="text-center text-sm text-muted-foreground">
-              转换默认在本地完成，不上传模型。
+              全部在本地完成，文件不会离开你的浏览器。
             </p>
           )}
         </div>

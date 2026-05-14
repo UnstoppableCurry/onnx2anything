@@ -5,11 +5,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 const publicRoot = path.join(projectRoot, 'apps/web/public/toolchains');
-const paddleLiteBackHalfArtifacts = [
+const paddleLiteBrowserArtifacts = [
   'apps/web/public/toolchains/paddlelite/paddle_lite_opt.js',
   'apps/web/public/toolchains/paddlelite/paddle_lite_opt.wasm',
+  'apps/web/public/toolchains/paddlelite/.browser-ready',
 ];
-const paddleLiteWasmBackHalfReady = paddleLiteBackHalfArtifacts.every((artifact) =>
+const paddleLiteBrowserReady = paddleLiteBrowserArtifacts.every((artifact) =>
   exists(artifact)
 );
 
@@ -89,7 +90,7 @@ const manifest = {
       readyStatus: 'beta',
       pendingStatus: 'experimental',
       notes: [
-        '仓库内已存在 ncnn 源码和 build-wasm 工具链，可输出 `.param + .bin` 结构。',
+        '仓库内已存在 ncnn 源码和 build-wasm 工具链，当前主线定位为 CPU-only 浏览器导出，不包含 TensorRT / GPU 绑定后端。',
       ],
       verification: {
         quickComparePassed: true,
@@ -125,7 +126,7 @@ const manifest = {
       readyStatus: 'beta',
       pendingStatus: 'experimental',
       notes: [
-        '仓库内已 vendored MNNConverter 源码，并已产出浏览器侧 `MNNConvert.js/.wasm` 构建物。',
+        '仓库内已 vendored MNNConverter 源码，并已产出浏览器侧 `MNNConvert.js/.wasm` 构建物；当前主线定位为 CPU-only 导出，不包含 GPU/TensorRT 绑定后端。',
         '当前浏览器链已验证可稳定覆盖 `add_const.onnx` 与 `ppocrv3_dbnet_no_identity.onnx`，并把保守前置分流阈值放宽到约 4MB。',
         '若真实模型在浏览器内触发 OOM，可直接使用 `npm run export:mnn:auto -- <baseUrl> <modelPath> <outPath>` 自动切到容器内 native MNNConvert。',
         '当前 ONNX 对齐验证已覆盖 browser-export + native-infer 路径，`add_const.onnx` 与 `ppocrv3_dbnet_no_identity.onnx` 输出均与 ONNX 对齐。',
@@ -139,6 +140,78 @@ const manifest = {
       },
       missingNote:
         'MNN browser-ready 依赖 `MNNConvert.js/.wasm`、包装模块与 `.browser-ready` 标记同时存在；若缺任一项，请重新执行构建与浏览器 smoke。',
+    }),
+    makeEntry({
+      id: 'tnn',
+      label: 'TNN',
+      description: '腾讯开源跨平台推理框架，适合 Android / iOS / ARM Linux / macOS。',
+      moduleUrl: '/toolchains/modules/tnn.mjs',
+      register: 'register',
+      readinessProbeUrl: '/toolchains/tnn/.browser-ready',
+      outputExtension: 'tnn.zip',
+      outputFilename: 'model.tnn.zip',
+      outputMime: 'application/zip',
+      readyArtifacts: [
+        'apps/web/public/toolchains/modules/tnn.mjs',
+        'apps/web/public/toolchains/tnn/TnnConverter.js',
+        'apps/web/public/toolchains/tnn/TnnConverter.wasm',
+        'apps/web/public/toolchains/tnn/.browser-ready',
+      ],
+      sourceArtifacts: [
+        'third_party/TNN/tools/convert2tnn/',
+      ],
+      readyStatus: 'experimental',
+      pendingStatus: 'experimental',
+      notes: [
+        'TNN (Tencent Neural Network) 是腾讯开源的跨平台推理框架，支持 ONNX 导入，输出 `.tnnproto + .tnnmodel` 双文件结构。',
+        'WASM 工具链已构建完成（TnnConverter.js + TnnConverter.wasm），可在浏览器中直接运行 ONNX → TNN 转换。',
+        '当前能力矩阵定位为 CPU-only 浏览器导出，不包含 GPU 绑定后端。',
+      ],
+      verification: {
+        quickComparePassed: false,
+        realModelComparePassed: false,
+        browserRuntimeReady: true,
+        comparedWith: null,
+        note: 'WASM 工具链已构建，待端到端转换验证。',
+      },
+      readyNote: '检测到完整的 TnnConverter 浏览器侧构建产物，当前可直接在 worker 中加载并执行 ONNX → TNN 转换。',
+      missingNote: '浏览器侧缺 TnnConverter.js/.wasm；运行 `npm run build:toolchain:tnn` 构建 WASM 工具链。',
+    }),
+    makeEntry({
+      id: 'tengine',
+      label: 'Tengine',
+      description: 'OAID 开源 ARM 端侧推理框架，适合 IoT 和嵌入式设备，输出单一 .tmfile 格式。',
+      moduleUrl: '/toolchains/modules/tengine.mjs',
+      register: 'register',
+      readinessProbeUrl: '/toolchains/tengine/.browser-ready',
+      outputExtension: 'tmfile',
+      outputFilename: 'model.tmfile',
+      outputMime: 'application/octet-stream',
+      readyArtifacts: [
+        'apps/web/public/toolchains/modules/tengine.mjs',
+        'apps/web/public/toolchains/tengine/TengineConvert.js',
+        'apps/web/public/toolchains/tengine/TengineConvert.wasm',
+        'apps/web/public/toolchains/tengine/.browser-ready',
+      ],
+      sourceArtifacts: [
+        'third_party/Tengine/tools/convert_tool/',
+      ],
+      readyStatus: 'experimental',
+      pendingStatus: 'experimental',
+      notes: [
+        'Tengine (OAID) 是开源的轻量级端侧推理框架，专为 ARM Cortex-A 和嵌入式 AI 芯片优化，输出单一 .tmfile 格式。',
+        'WASM 工具链已构建完成（TengineConvert.js + TengineConvert.wasm），可在浏览器中直接运行 ONNX → Tengine 转换。',
+        '当前能力矩阵定位为 CPU-only 浏览器导出，不包含 GPU 绑定后端。',
+      ],
+      verification: {
+        quickComparePassed: false,
+        realModelComparePassed: false,
+        browserRuntimeReady: true,
+        comparedWith: null,
+        note: 'WASM 工具链已构建，待端到端转换验证。',
+      },
+      readyNote: '检测到完整的 TengineConverter 浏览器侧构建产物，当前可直接在 worker 中加载并执行 ONNX → Tengine 转换。',
+      missingNote: '浏览器侧缺 TengineConvert.js/.wasm；运行 `npm run build:toolchain:tengine` 构建 WASM 工具链。',
     }),
     makeEntry({
       id: 'openvino',
@@ -160,7 +233,7 @@ const manifest = {
       readyStatus: 'experimental',
       pendingStatus: 'experimental',
       notes: [
-        '仓库内已包含 OpenVINO OVC 源码，但 Model Optimizer/OVC 体积和依赖链仍偏重。',
+        '仓库内已包含 OpenVINO OVC 源码，但当前主线仅固化 CPU-only / native fallback 方案，不提供浏览器内 GPU 绑定导出。',
         '容器内 native fallback 已验证可用，可通过 `node scripts/export-openvino-artifacts-native.mjs <modelPath> <outPath>` 直接导出 `.xml + .bin` 的 zip 包。',
         '当前 compare runner 在 ARM CPU plugin 上会显式使用 `INFERENCE_PRECISION_HINT=f32`，用于绕过 DBNet 上已复现的 Reduce executor 缺口。',
         '日常回归优先跑 `npm run test:smoke:edge:baseline`，不要再把 OpenVINO 误记成“整体没进展”。',
@@ -197,23 +270,21 @@ const manifest = {
       readyStatus: 'experimental',
       pendingStatus: 'experimental',
       notes: [
-        paddleLiteWasmBackHalfReady
-          ? '已检测到 Paddle Lite wasm 后半段构建物 `paddle_lite_opt.js/.wasm`，且低层 runtime smoke 已通过；但它只覆盖 Paddle inference model -> .nb，不代表完整 ONNX 浏览器链路已就绪。'
-          : '仓库内已包含 Paddle Lite opt 源码；浏览器侧后半段需要的 `paddle_lite_opt.js/.wasm` 仍在补齐。',
+        'Paddle Lite 适合 ARM 和轻量边缘设备的 CPU-only 部署，输出单个 `.nb` 模型。',
         '容器内 native export 与 compare 已验证可用，可通过 `node scripts/export-paddlelite-artifacts-native.mjs <modelPath> <outPath>` 直接导出 `.nb` 文件。',
-        '当前 `add_const.onnx` 与 `ppocrv3_dbnet_no_identity.onnx` 的 Paddle Lite 输出已和 ONNX 对齐。',
-        '不要再把 Paddle Lite 浏览器阻塞误记成“只是没出 opt.wasm”：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时，而且 x2paddle 在导入阶段就会拉起 paddle。',
+        '当前能力矩阵不包含 TensorRT 或其他 GPU 绑定后端。',
       ],
       verification: {
         quickComparePassed: true,
         realModelComparePassed: true,
-        browserRuntimeReady: false,
+        browserRuntimeReady: paddleLiteBrowserReady,
         comparedWith: 'ONNX',
-        note: 'Paddle Lite 一致性 compare 已通过；但浏览器侧完整 ONNX -> PaddleLite 仍分成前半段 x2paddle/paddle 依赖与后半段 opt.wasm 两个问题。',
+        note: 'Paddle Lite 一致性 compare 已通过；浏览器侧 ONNX -> Paddle Lite 现在可直接通过 opt WASM 完成。',
       },
-      missingNote: paddleLiteWasmBackHalfReady
-        ? '已检测到 `paddle_lite_opt.js/.wasm`，但完整浏览器链路仍未打通：前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle，且尚未创建 `.browser-ready` 标记。现阶段继续走 native/container export。'
-        : '浏览器侧完整链路仍未打通：后半段 `paddle_lite_opt.js/.wasm` 待补齐，前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle。现阶段继续走 native/container export。',
+      readyNote:
+        '检测到完整的 Paddle Lite 浏览器侧构建产物，当前可直接在 worker 中加载并执行 ONNX -> Paddle Lite 转换。',
+      missingNote:
+        '浏览器侧仍缺完整的 Paddle Lite 构建产物；请先补齐 `paddle_lite_opt.js/.wasm` 和 `.browser-ready` 标记，现阶段继续走 native/container export。',
     }),
   ],
 };

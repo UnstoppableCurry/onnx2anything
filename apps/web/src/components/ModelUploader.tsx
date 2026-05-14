@@ -82,14 +82,14 @@ export const ModelUploader: React.FC<ModelUploaderProps> = ({
       const format = detectModelFormat(file.name);
 
       // 验证文件类型
-      if (format === 'unknown') {
-        return {
+        if (format === 'unknown') {
+          return {
           file,
           name: file.name,
           size: file.size,
           format,
           isValid: false,
-          error: '不支持的文件格式，请上传 ONNX 格式文件 (.onnx)',
+          error: '请上传 .onnx 文件',
         };
       }
 
@@ -102,7 +102,7 @@ export const ModelUploader: React.FC<ModelUploaderProps> = ({
           size: file.size,
           format,
           isValid: false,
-          error: `文件大小超过 ${maxSize}MB 限制`,
+          error: `文件太大了，先控制在 ${maxSize}MB 以内`,
         };
       }
 
@@ -114,7 +114,7 @@ export const ModelUploader: React.FC<ModelUploaderProps> = ({
           size: file.size,
           format,
           isValid: false,
-          error: '文件为空，请选择有效的 ONNX 模型文件',
+          error: '文件是空的，换一个试试',
         };
       }
 
@@ -127,7 +127,7 @@ export const ModelUploader: React.FC<ModelUploaderProps> = ({
           size: file.size,
           format,
           isValid: false,
-          error: '文件格式验证失败，请确保上传的是有效的 ONNX 模型',
+          error: '这个文件看起来不是有效的 ONNX 模型',
         };
       }
 
@@ -224,7 +224,7 @@ export const ModelUploader: React.FC<ModelUploaderProps> = ({
               <div className="p-4 rounded-full bg-muted">
                 <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
               </div>
-              <p className="text-sm text-muted-foreground">正在验证文件...</p>
+              <p className="text-sm text-muted-foreground">正在检查文件...</p>
             </div>
           ) : fileInfo?.isValid ? (
             <div className="flex flex-col items-center gap-3">
@@ -261,7 +261,7 @@ export const ModelUploader: React.FC<ModelUploaderProps> = ({
               </div>
               <div className="text-center">
                 <p className="font-medium text-foreground">
-                  {isDragActive ? '释放以上传' : '点击或拖拽上传 ONNX 模型'}
+                  {isDragActive ? '松手就能上传' : '拖进来，或者点一下选文件'}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   支持 .onnx 格式，最大 {maxSize}MB

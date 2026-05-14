@@ -1,0 +1,1 @@
+{"ready":true,"timestamp":"2026-05-14T01:58:53Z","note":"ONNX→PaddleLite browser pipeline ready via paddle_lite_opt --model_type=onnx"}

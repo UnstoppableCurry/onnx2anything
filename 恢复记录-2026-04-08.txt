@@ -1,0 +1,993 @@
+项目恢复记录
+日期: 2026-04-08
+
+本次恢复目标
+- 尽量从 Docker/Colima 与现有仓库中恢复上次工作现场
+- 避免重复构建、重复验证、重复踩坑
+
+已恢复出的真实状态
+
+1. 容器状态
+- Colima 原本未启动，已重新启动
+- 关键容器:
+  - `onnx2anything-toolchain-builder`，镜像 `docker-toolchain-builder`
+  - `wasm-builder`，镜像 `debian:bookworm-slim`
+- 两个容器在 Colima 重启后都变成 `Exited (255)`，现已重新 `start`
+- 两个容器的挂载目录都是:
+  - `/Users/money/Desktop/convert` -> `/workspace`
+
+2. 容器内 history
+- `toolchain-builder` 内未发现:
+  - `/root/.bash_history`
+  - `/root/.python_history`
+- `wasm-builder` 内也未发现 shell history
+- 结论:
+  - 上次主要不是交互式 shell 操作，或 history 未落盘
+  - 恢复上下文应以仓库产物、验证文件、日志文件为主
+
+3. 已确认仍然存在的关键产物
+- NCNN:
+  - `apps/web/public/toolchains/ncnn/onnx2ncnn.js`
+  - `apps/web/public/toolchains/ncnn/onnx2ncnn.wasm`
+- MNN:
+  - `apps/web/public/toolchains/mnn/MNNConvert.js`
+  - `apps/web/public/toolchains/mnn/MNNConvert.wasm`
+- 验证产物:
+  - `apps/web/public/verify/generated/ppocrv3_dbnet.onnx`
+  - `apps/web/public/verify/generated/ppocrv3_dbnet.param`
+  - `apps/web/public/verify/generated/ppocrv3_dbnet.bin`
+  - `apps/web/public/verify/generated/ppocrv3_dbnet_no_identity.onnx`
+  - `apps/web/public/verify/generated/ppocrv3_dbnet_no_identity.param`
+  - `apps/web/public/verify/generated/ppocrv3_dbnet_no_identity.bin`
+  - `apps/web/public/verify/generated/ppocrv3_dbnet_no_identity.mnn`
+  - `apps/web/public/verify/generated/yolov5n.onnx`
+  - `apps/web/public/verify/generated/yolov5n.param`
+  - `apps/web/public/verify/generated/yolov5n.bin`
+
+4. 未恢复出的临时目录
+- 主机侧未找回:
+  - `/tmp/dbnet_compare`
+  - 旧的完整 `/tmp/onnx-ncnn-compare` 依赖环境
+- 当前 `/private/tmp/onnx-ncnn-compare` 只剩空 venv 与 `pip`
+- 说明:
+  - 上次 Python 环境和下载下来的 DBNet Paddle 模型临时目录已经丢失
+  - 但关键结果已经被固化进仓库 `apps/web/public/verify/generated`
+
+5. 容器内仍然保留的关键日志
+- `toolchain-builder`:
+  - `/tmp/mnn-cmake.log`
+  - `/tmp/mnn-build.log`
+  - `/tmp/mnn-finalize.json`
+- `wasm-builder`:
+  - `/tmp/onnx2ncnn-cmake.log`
+  - `/tmp/onnx2ncnn-build.log`
+  - `/tmp/onnx2ncnn-link.log`
+  - `/tmp/mnn-host-cmake.log`
+  - `/tmp/mnn-host-build.log`
+  - `/tmp/mnn-dis.log`
+  - `/tmp/paddle-host-cmake.log`
+
+从日志恢复出的结论
+
+1. NCNN 浏览器链路
+- `onnx2ncnn` 产物已经存在于仓库
+- 旧日志里 `wasm-builder:/tmp/onnx2ncnn-build.log` 记录过:
+  - `ninja: error: unknown target 'onnx2ncnn'`
+- 这说明早期尝试过一条失败构建路径
+- 但当前仓库内 `onnx2ncnn.js/.wasm` 已经存在，说明后续已通过其他路径产出可用构建物
+- 继续工作时不要再按这条失败日志重走老路
+
+2. DBNet -> NCNN 结论
+- 仓库现状与 `ONNX2NCNN_DBNet_Playbook.md` 一致:
+  - 官方 PaddleOCR `PP-OCRv3_mobile_det_infer`
+  - `paddle2onnx` 导出 ONNX
+  - 原始 ONNX 中有 `Identity` 噪音节点
+  - 去掉 `Identity` 后，`onnx2ncnn` + NCNN runtime 验证通过
+- 关键已固化产物:
+  - `ppocrv3_dbnet_no_identity.onnx`
+  - 对应 `.param/.bin`
+
+3. MNN 浏览器链路
+- `MNNConvert.wasm` 已经构建并 finalize 过
+- `toolchain-builder:/tmp/mnn-finalize.json` 存在，说明 finalize 步骤已完成
+- `mnn.mjs` wrapper 与 `MNNConvert.js/.wasm` 也都在仓库中
+- 但 `apps/web/public/toolchains/mnn/.browser-ready` 不存在
+- 因此 manifest 仍将 `MNN` 保持为 `build-required`
+- 这与当前真实状态一致:
+  - 小模型可转
+  - DBNet 级别真实模型仍有浏览器内存压力/OOM 风险
+
+4. Paddle Lite 状态
+- `wasm-builder:/tmp/paddle-host-cmake.log` 显示 host-side 配置失败
+- 直接 blocker:
+  - `third_party/Paddle-Lite/third-party/gflags` 缺失
+  - CMake 报 `No download info given for 'extern_gflags'`
+- 结论:
+  - Paddle Lite 不是“还没开始”
+  - 是已经摸到 host-side 配置阶段，但被三方依赖缺失卡住
+
+5. 与“胰腺癌”相关的恢复结果
+- 本仓库、主机历史、容器历史中均未发现:
+  - `胰腺癌`
+  - `pancrea`
+  - `panc`
+- 当前项目恢复上下文里没有这条工作线索
+
+本次顺手做过的代码修正
+- `scripts/run-onnx-ncnn-compare.sh`
+  - 改成优先复用已有 Python 环境
+  - 缺依赖时才安装
+  - 离线失败时给出明确提示，不再无条件重建空 venv 覆盖现场
+- `scripts/run-dbnet-ncnn-compare.sh`
+  - 同上，避免离线环境把可恢复现场冲掉
+- `scripts/generate-toolchain-manifest.mjs`
+  - 把 MNN 的说明收紧到当前真实状态:
+    - wrapper 已经能跑小模型
+    - 但 DBNet 仍未满足浏览器 ready 条件
+
+建议从这里继续
+
+1. 如果继续 NCNN
+- 不要重复做 YOLO 试错
+- 直接以 `ppocrv3_dbnet_no_identity.onnx` 为准
+- 需要时优先复用:
+  - `scripts/compare_dbnet_ncnn.py`
+  - `scripts/smoke_dbnet_export.mjs`
+  - `ONNX2NCNN_DBNet_Playbook.md`
+
+2. 如果继续 MNN
+- 不要再从“wrapper 未打通”这个旧结论出发
+- 当前真实 blocker 是:
+  - 真实模型浏览器内存策略
+  - `.browser-ready` 何时可以安全写入
+
+3. 如果继续 Paddle Lite
+- 先补 `gflags` / 第三方依赖完整性
+- 不要直接上浏览器 wasm 构建
+
+4. 如果再次恢复现场
+- 先看:
+  - `记忆备份.txt`
+  - `ONNX2NCNN_DBNet_Playbook.md`
+  - 本文件 `恢复记录-2026-04-08.txt`
+
+本次追加验证
+
+1. NCNN
+- 2026-04-08 已再次实测:
+  - `node scripts/export-ncnn-artifacts.mjs ... ppocrv3_dbnet_no_identity.onnx` 成功
+  - `node scripts/smoke_dbnet_export.mjs http://127.0.0.1:4184/ ...` 成功
+  - `npm run test:compare:ncnn` 成功
+  - `npm run test:compare:dbnet` 成功
+- 结论: `NCNN` 现在不是 blocker
+
+2. MNN
+- `add_const.onnx` 浏览器转换成功
+- `ppocrv3_dbnet_no_identity.onnx` 浏览器转换仍然 `Aborted(OOM)`
+- 新增尝试:
+  - 给 `mnn.mjs` 增加 `optimizeLevel` / `optimizePrefer` 参数透传
+  - 实测 `optimizeLevel=0` 依然 `OOM`
+- 结论:
+  - 真实 blocker 仍是浏览器侧内存压力，不是单一优化等级
+
+3. MNN 路径问题
+- 2026-04-08 已修复 worker 里对 `MNNConvert.js/.wasm` 的错误提前加载
+- 修复前:
+  - `dist` 页面会错误请求 `/assets/workers/MNNConvert.wasm`
+- 修复后:
+  - worker 改为通过 `toolchains/modules/*.mjs` wrapper 加载
+  - `MNN` 在 `.browser-ready` 缺失时不再提前装载
+  - 真实 app smoke 里已不再出现 `MNNConvert.wasm` 404
+
+4. MNN 3GB wasm 尝试
+- 尝试把 MNN wasm 链接上限从 `2GB` 提到 `3GB`
+- 非破坏性 clean build 目录:
+  - `/workspace/third_party/MNN/build-wasm-converter-3g`
+- 结果:
+  - 不是缓存问题
+  - clean build 也在链接 `MNNConvert.js` 时失败
+  - 失败符号包括:
+    - `caffe2MNNNet`
+    - `tflite2MNNNet`
+    - `dumpTflite2Json`
+    - `tensorflow2MNNNet`
+- 结论:
+  - “直接抬高 wasm 最大内存” 目前不是一条可直接落地的修复路径
+  - 已回滚主构建脚本到原先可工作的 2GB 配置
+
+5. MNN 进一步定位
+- 已把浏览器 runtime 输入链路从 `base64` 改为直接传 `Uint8Array`
+- 小模型 `add_const.onnx` 仍成功，说明回归未坏
+- 真实 DBNet 仍然 `OOM`
+- 新增参数实验，均在全新浏览器实例下单独验证失败:
+  - `fp16`
+  - `weightQuantBits=8`
+  - `optimizePrefer=1`
+  - `saveStaticModel + inputConfig(1x3x160x160)`
+  - `saveExternalData`
+- 用 `dumpPass` 观察到:
+  - 大部分优化 pass 实际已经跑完
+  - `OOM` 更接近发生在优化后的后处理 / 序列化阶段，而不只是最开始的图优化入口
+
+6. MNN native 对照结果
+- 容器内 host/native `MNNConvert` 已验证可成功转换同一份 DBNet:
+  - 容器:
+    - `onnx2anything-toolchain-builder`
+  - 转换器:
+    - `/workspace/third_party/MNN/build-host-converter/MNNConvert`
+- 新增脚本:
+  - `scripts/export-mnn-artifacts-native.mjs`
+- 实测:
+  - `node scripts/export-mnn-artifacts-native.mjs apps/web/public/verify/generated/ppocrv3_dbnet_no_identity.onnx /tmp/ppocrv3_dbnet_native_export.mnn`
+  - 成功导出 `2330656` bytes
+- 结论:
+  - 当前 blocker 不是模型本身不可转
+  - 而是浏览器侧 `MNN wasm` 的 2GB 内存上限不够这类真实模型
+
+7. 当前最务实的处理建议
+- 浏览器内:
+  - `MNN` 对真实 DBNet 继续保持未 ready
+  - 命中 `OOM` 时直接提示用户改走 native/container fallback
+- 实际产物导出:
+  - 直接使用 `scripts/export-mnn-artifacts-native.mjs`
+- 真要继续攻 browser-only:
+  - 需要更深的 MNN wasm 构建改造，而不是继续微调现有转换参数
+
+8. 新范围约束
+- 已明确按新要求收紧为:
+  - 不处理权重超过 `1GB` 的单模型 ONNX 转换
+- 代码侧已落地:
+  - 上传器默认上限改为 `1024MB`
+  - `useConversion` 在发给 worker 前再次校验
+  - `converter.worker` 内再做一层硬校验
+- 目的:
+  - 让限制在 UI / 主线程 / worker 三层都一致
+  - 避免后续再围绕超大模型做无效尝试
+
+9. 新脚本入口
+- 根 `package.json` 已补:
+  - `npm run export:mnn:native -- <modelPath> <outPath>`
+- 等价于:
+  - `node scripts/export-mnn-artifacts-native.mjs <modelPath> <outPath>`
+
+10. MNN 自动 fallback
+- `scripts/export-mnn-artifacts.mjs` 已支持:
+  - `--fallback-native`
+  - 环境变量 `MNN_EXPORT_FALLBACK=native`
+- 行为:
+  - 先走浏览器 `verify-onnx2mnn.html`
+  - 若命中 `Aborted(OOM)` / `WASM 内存上限`，自动切到 `scripts/export-mnn-artifacts-native.mjs`
+- 根 `package.json` 已补:
+  - `npm run export:mnn:auto -- <modelPath> <outPath>`
+
+11. TFLite native 真实模型状态更正
+- 不再停留在“小模型可转”的旧结论
+- `scripts/convert_onnx_to_tflite.py` 已加入:
+  - 自动识别 `Add + [1,C,1,1] initializer`
+  - 生成 `param_replacement.json`
+  - 以 1D channel bias 形式回灌给 `onnx2tf`
+- 已实测:
+  - `add_const.onnx` 成功
+  - `ppocrv3_dbnet_no_identity.onnx` 成功
+- 经验:
+  - 这是 `onnx2tf` 在 NHWC 广播上的已知坑位之一
+  - 后续若再遇到 DBNet 类模型，不要重新从随机图简化开始试错，先查 `param_replacement_count`
+
+12. Paddle Lite native 真实模型状态更正
+- 当前 blocker 不是 `opt` 本身，也不是模型太大
+- 根因是:
+  - `Paddle 3.x + x2paddle 1.6.0` 默认导出 PIR `model.json`
+  - 当前 `Paddle Lite opt` 不吃这套格式
+- 已固定可行组合:
+  - `paddlepaddle==2.6.2`
+  - `x2paddle==1.6.0`
+  - `onnx==1.14.1`
+- 已实测:
+  - `add_const.onnx` 成功
+  - `ppocrv3_dbnet_no_identity.onnx` 成功
+- 经验:
+  - 以后不要再用新版 Paddle 环境反复验证同一个失败路径
+  - 先确认产出是否为旧格式 `model.pdmodel + model.pdiparams`
+
+13. OpenVINO native 新进展
+- 浏览器侧状态没有变化:
+  - `apps/web/public/toolchains/modules/openvino.mjs` 仍只是 scaffold
+  - `scripts/build-openvino-toolchain-inside-container.sh` 仍明确退出，不要重走 browser-only 路线
+- 已新增:
+  - `scripts/convert_onnx_to_openvino.py`
+  - `scripts/export-openvino-artifacts-native.mjs`
+- 当前策略:
+  - `none`: `compress_to_fp16=False`
+  - `fp16`: `compress_to_fp16=True`
+  - `int8`: 直接报 unsupported，不再伪装支持
+- 经验:
+  - OpenVINO 这条线当前最务实的是 Python API native fallback
+  - 不要把时间浪费在 `ovc.js/ovc.wasm` 的浏览器构建幻想上
+  - `npm run export:mnn:auto -- <baseUrl> <modelPath> <outPath>`
+- 实测:
+  - 小模型 `add_const.onnx` 仍走 browser 成功
+  - DBNet `ppocrv3_dbnet_no_identity.onnx` 会先在 browser 侧 OOM，再自动切到 native 成功导出
+  - `node scripts/smoke_dbnet_mnn_auto_export.mjs` 已实测通过
+  - 输出文件:
+    - `/tmp/ppocrv3_dbnet_mnn_auto_smoke.mnn`
+  - 输出大小:
+    - `2330656` bytes
+- 结论:
+  - 现在 `MNN` 的真实模型导出流程已不再被 browser OOM 阻断
+  - browser-only 仍未 ready，但导出链路已经有可用的自动兜底
+
+11. Paddle Lite 新进展
+- `Paddle Lite` 当前比 `OpenVINO` 更接近可落地，但仍处在 native 工具链恢复阶段
+- 新确认的两个真实 blocker:
+  - `third-party/protobuf-host` 里的旧版 protobuf 源码与 `GCC 12` 不兼容
+  - `build.sh build_optimize_tool` 在当前 `aarch64` 容器里会把 `LITE_WITH_X86` 误判为开启，随后炸在 `lite/core/device_info.cc` 的 `cpuid/xgetbv` 内联汇编
+- 已验证的修正方向:
+  - 给 `third-party/protobuf-host/src/google/protobuf/compiler/java/java_file.cc` 的 `FieldDescriptorCompare::operator()` 补 `const`
+  - 在 arm64 容器里改走 host-only 配置:
+    - `-DLITE_WITH_X86=OFF`
+    - `-DLITE_WITH_ARM=OFF`
+    - `-DLITE_ON_MODEL_OPTIMIZE_TOOL=ON`
+    - `-DWITH_TESTING=OFF`
+    - `-DLITE_BUILD_EXTRA=ON`
+    - `-DWITH_MKL=OFF`
+- 已新增可复现脚本:
+  - `scripts/build-paddlelite-opt-native.mjs`
+- 已新增补丁文件:
+  - `patches/paddle-lite-protobuf-gcc12.patch`
+- 根 `package.json` 已补:
+  - `npm run build:paddlelite:opt:native`
+- 当前额外前提仍未满足:
+  - 容器里还没有 `x2paddle`
+  - 容器里还没有 `paddlepaddle`
+  - 因此即使 `opt` 编出来，`ONNX -> Paddle -> Paddle Lite` 仍缺前半段转换环境
+- 追加现场结论:
+  - 容器里一度同时存在旧的 `build.opt` 与正确的 `build.opt.host` 两条编译线
+  - 旧 `build.opt` 会继续带着 `LITE_WITH_X86` 方案抢 CPU，没有继续保留价值
+  - 已明确清掉旧 `build.opt` 分支，只保留 `build.opt.host`
+  - 清理后 `build.opt.host` 编译进度明显提升
+  - 截至本轮，`build.opt.host/lite/api/opt` 已成功编出并可执行
+  - 实测:
+    - `/workspace/third_party/Paddle-Lite/build.opt.host/lite/api/opt --help` 正常返回
+  - 当前产物:
+    - `third_party/Paddle-Lite/build.opt.host/lite/api/opt`
+- Python 安装方式也已确认:
+  - 系统 Python 直接 `pip install` 会被 `PEP 668` 拦住
+  - 必须走 venv
+  - 在 venv 里已确认可以解析到:
+    - `x2paddle`
+    - `paddlepaddle`
+    - `onnx`
+  - 其中 `paddlepaddle` 已出现 `manylinux2014_aarch64` wheel
+
+2026-04-08 OpenVINO native 再更正（以本段为准）
+
+1. 当前真实状态
+- `OpenVINO browser` 仍未完成:
+  - `apps/web/public/toolchains/modules/openvino.mjs` 还是 scaffold
+  - `ovc.js/ovc.wasm` 仍不存在
+- `OpenVINO native` 已打通:
+  - `scripts/convert_onnx_to_openvino.py`
+  - `scripts/export-openvino-artifacts-native.mjs`
+  - `scripts/smoke_openvino_native_export.mjs`
+- `package.json` 已补脚本:
+  - `npm run export:openvino:native -- <modelPath> <outPath>`
+  - `npm run test:smoke:openvino:native`
+
+2. 已验证结果
+- 小模型 `add_const.onnx`
+  - `none` 成功
+  - 输出:
+    - `/tmp/add_const.native.openvino.zip`
+    - `722 bytes`
+- 小模型 `add_const.onnx`
+  - `fp16` 成功
+  - 输出:
+    - `/tmp/add_const.native.fp16.openvino.zip`
+    - `792 bytes`
+- 真实模型 `ppocrv3_dbnet_no_identity.onnx`
+  - `none` 成功
+  - 输出:
+    - `/tmp/ppocrv3_dbnet_no_identity.native.openvino.zip`
+    - `2121158 bytes`
+  - 解包内部大小:
+    - `model.xml = 236917 bytes`
+    - `model.bin = 2295696 bytes`
+
+3. 已固定策略
+- `quantization=none`
+  - `ov.save_model(..., compress_to_fp16=False)`
+- `quantization=fp16`
+  - `ov.save_model(..., compress_to_fp16=True)`
+- `quantization=int8`
+  - 直接报 unsupported
+  - 不再假装支持 PTQ / NNCF 流程
+
+4. 错题本 / 不要重犯
+- 不要再把 `OpenVINO` 误记成“整体没进展”
+  - 正确说法是:
+    - browser 仍是 scaffold
+    - native export 已可用
+- 不要再围绕 `ovc.js/ovc.wasm` 反复试 browser-only 路线
+  - 当前最务实路径就是 Python API native fallback
+- 不要把 `int8` 当作顺手参数继续试
+  - 这不是 `save_model` 开关问题
+  - 是独立 PTQ 能力范围
+- 原生导出脚本不要只做 `1GB` 输入校验却保留 `256MB maxBuffer`
+  - 否则合法模型也会在读取容器产物时被自己卡死
+  - 本轮已把 `MNN/TFLite/Paddle Lite/OpenVINO` 的 artifact read buffer 一并抬到与 `1GB` 上限一致的量级
+- 不要再让“capability 显示 available”与“convert 实际 unsupported”同时存在
+  - `packages/wasm-converter/python/converters/openvino_converter.py` 之前就有这个问题
+  - 现已补成:
+    - 有 wasm bridge 时走 bridge
+    - 否则有 native `openvino` 时直接走 Python API
+  - `OpenVINO` 的量化能力说明也已收紧为 `none/fp16`
+  - 另已补可复用 smoke:
+    - `scripts/smoke_openvino_python_converter.py`
+    - `npm run test:smoke:openvino:python`
+- 不要再用 `python - <<'PY'` 这类 heredoc/stdin 方式测 OpenVINO native converter
+  - 在当前宿主 `Python 3.14` 下，OpenVINO 内部多进程会把 `__main__` 解析成 `<stdin>`
+  - 会刷出大量 `multiprocessing.spawn FileNotFoundError`
+  - 转换本身可能仍成功，但日志极易误导
+  - 正确做法:
+    - 直接运行仓库脚本 `python3 scripts/smoke_openvino_python_converter.py`
+    - 或 `npm run test:smoke:openvino:python`
+- 不要只更新 `packages/wasm-converter/dist` 就以为前端已经生效
+  - 浏览器实际读取的是:
+    - `apps/web/public/wasm-converter/*`
+  - 本轮已补:
+    - `scripts/sync-wasm-converter-assets.mjs`
+    - `scripts/check-wasm-converter-sync.mjs`
+    - 根 `npm run build:wasm`
+    - 根 `npm run sync:wasm`
+    - 根 `npm run test:smoke:wasm-sync`
+  - 现在 `build:wasm` 会自动把 `dist` 同步到 `apps/web/public/wasm-converter`
+- `packages/wasm-converter/build.js` 生成的 `types.d.ts` 之前漏了 `paddlelite`
+  - 这会让类型层和真实支持格式继续分叉
+  - 本轮已补齐
+- `BaseEdgeConverter.describe_capability()` 以前默认把“装了某些 native 库”也算成 `available`
+  - 这会再次制造“会说不会做”的假能力
+  - 本轮已改成:
+    - 只有 `wasm bridge` 存在
+    - 或 converter 明确声明 `native_supported = true`
+    - 才允许 `available = true`
+  - 当前只有 `OpenVINO` 打开了这条 native backend 能力
+- `MNNConverter` 之前 `archive_output = False`，但实际返回常常是 `model.mnn.zip`
+  - 这也是元数据说错话
+  - 本轮已改正为 `archive_output = True`
+- 已补 capability smoke:
+  - `scripts/smoke_converter_capabilities.py`
+  - `npm run test:smoke:converter-capabilities`
+- 结论:
+  - `Paddle Lite` 已经不是“完全没头绪”
+  - 当前工作重心应是:
+    1. 先把 `opt` 稳定编出来
+    2. 再补 `x2paddle/paddlepaddle`
+    3. 最后再接 native export 脚本与 smoke test
+
+12. TFLite 新进展
+- `TensorFlow Lite` 不是遗漏项，已作为并行主线补上 native 导出链路
+- 已新增脚本:
+  - `scripts/convert_onnx_to_tflite.py`
+  - `scripts/export-tflite-artifacts-native.mjs`
+  - `scripts/smoke_tflite_native_export.mjs`
+- 根 `package.json` 已补:
+  - `npm run export:tflite:native -- <modelPath> <outPath>`
+  - `npm run test:smoke:tflite:native`
+- 当前脚本层补充:
+  - native 导出脚本已在入口处加上单模型 `1GB` 限制
+  - 默认 smoke 模型使用:
+    - `apps/web/public/verify/generated/add_const.onnx`
+- 浏览器链路现状未变:
+  - UI/worker 里虽然已有 `tflite` 选项
+  - 但本质仍依赖 `onnx2tf/tensorflow`
+  - 当前工作区里真正可落地的仍是容器 native 路线，不是 browser-only
+- 当前容器实时状态:
+  - `TFLite native` 会在容器 venv `/tmp/onnx2anything-tflite-venv` 内安装依赖
+  - 已确认系统 Python 里并不存在:
+    - `onnx`
+    - `onnx2tf`
+    - `tensorflow`
+  - 安装过程里已观察到会拉起源码构建目录:
+    - `onnxsim`
+    - `onnxoptimizer`
+  - 旧的 `pip --dry-run` 探针已清理，避免继续抢占解析/下载资源
+- 截至当前:
+  - 真正的 `TFLite native` 安装会话仍在运行
+  - 通过 `/proc/<pid>/fd` 已确认 pip 子进程手上打开了:
+    - `cmake-4.3.1-py3-none-manylinux2014_aarch64...whl`
+  - 后续又确认其真实慢点来自 `onnx2tf` 的强依赖:
+    - `onnxsim==0.4.36`
+    - `onnxoptimizer==0.4.2`
+    - `h5py==3.11.0`
+  - 这些依赖在当前 `aarch64` 容器里会走源码包 / build-env，因此安装显著慢于 `Paddle Lite` 那条线
+  - `Paddle Lite opt` host-only 编译也仍在运行，且无新 blocker
+
+13. 2026-04-08 晚间续推结果
+- `Paddle Lite native` 小模型链路已端到端打通:
+  - 直接命令与 Node 包装脚本都已实测成功:
+    - `scripts/convert_onnx_to_paddlelite.py`
+    - `scripts/export-paddlelite-artifacts-native.mjs`
+  - `add_const.onnx` -> `.nb` 成功
+- `Paddle Lite native` 当前实际依赖基线已确认:
+  - `x2paddle`
+  - `paddlepaddle`
+  - `onnx==1.14.1`
+  - `six`
+  - `requests`
+  - `sympy`
+  - `packaging`
+- `Paddle Lite` 本次补掉的真实兼容性坑:
+  - `x2paddle` 运行时缺少未显式声明的 `six` / `requests`
+  - `x2paddle 1.6.0` 与 `onnx 1.19+ / 1.21+` 不兼容，因为它仍导入 `onnx.mapping`
+  - `x2paddle` 在 Paddle 3 下默认导出 `model.json + model.pdiparams`
+  - `Paddle Lite opt` 直接吃这个新格式会崩
+  - 现已在仓库 helper 中补了“legacy inference export”兜底:
+    - 先让 `x2paddle` 产出动态图代码与 `model.pdparams`
+    - 再单独子进程里用 `paddle.pir_utils.OldIrGuard()` 导出旧 `model.pdmodel + model.pdiparams`
+    - 最后再喂给 `opt`
+- `Paddle Lite native` 对真实 DBNet 仍未打通:
+  - `ppocrv3_dbnet_no_identity.onnx` 在 legacy export 阶段失败
+  - 具体报错:
+    - `multiply(): argument (position 1) must be Value, but got Variable`
+  - 现判断为:
+    - Paddle 3 `OldIrGuard` + x2paddle 生成图在该 DBNet / HardSwish 路径上仍有 `Value/Variable` 混用问题
+  - 结论:
+    - `Paddle Lite` 现在是“小模型 native 可用，真实 DBNet 仍 blocked”
+
+- `TFLite native` 小模型链路已端到端打通:
+  - 直接命令与 Node 包装脚本都已实测成功:
+    - `scripts/convert_onnx_to_tflite.py`
+    - `scripts/export-tflite-artifacts-native.mjs`
+  - `add_const.onnx` -> `.tflite` 成功
+- `TFLite native` 本次确认的正确安装策略:
+  - 不再走 `onnx2tf` 默认全依赖安装
+  - 当前可用方案是:
+    - `tensorflow==2.19.0` 正常装依赖
+    - 其 `h5py` 会解析到可用 wheel:
+      - `h5py==3.16.0`
+    - 手工装:
+      - `tf-keras==2.19.0`
+      - `onnx==1.19.1`
+      - `onnx-graphsurgeon==0.5.8`
+      - `ai-edge-litert==2.1.0`
+      - `psutil==5.9.5`
+      - `requests==2.32.5`
+      - `flatbuffers==25.12.19`
+      - `ml-dtypes==0.5.1`
+      - `protobuf==4.25.5`
+      - `numpy==1.26.4`
+      - `sng4onnx==2.0.1`
+      - `onnxruntime==1.23.0`
+    - 最后再:
+      - `pip install --no-deps onnx2tf==1.29.24`
+  - 这样可避开旧 blocker:
+    - `onnxoptimizer==0.4.2`
+    - `onnx2tf` 钉死的 `h5py==3.11.0`
+- `TFLite` 本次顺手修掉的代码问题:
+  - 仓库原 helper 对 `onnx2tf` 的调用方式是错的
+  - `onnx2tf.convert()` 当前并不接收:
+    - `output_tflite_file_path`
+    - `output_float16_quantized_tflite`
+  - 现已改为:
+    - 传 `output_folder_path`
+    - 默认 `--not-use-onnxsim`
+    - 再从输出目录里拣目标 `.tflite`
+  - 已确认默认输出命名:
+    - `_float32.tflite`
+    - `_float16.tflite`
+    - `_dynamic_range_quant.tflite`
+    - `_integer_quant.tflite`
+- `TFLite native` 对真实 DBNet 仍未打通:
+  - `ppocrv3_dbnet_no_identity.onnx` 在 `onnx2tf` 阶段失败
+  - 定位到:
+    - `Add.74`
+  - 具体形状冲突:
+    - `x`: `[?,16,16,24]`
+    - `y`: `[1,1,24,1]`
+  - 结论:
+    - 当前不是安装 blocker
+    - 而是 `onnx2tf` 对该 DBNet 图的布局/广播处理仍需额外参数替换或 shape rewrite
+
+2026-04-08 后续更正
+
+1. `TFLite native` 真实 DBNet 已打通
+- 之前的 blocker 已解决，不再是 `Add.74` 未知问题
+- 根因确认:
+  - `onnx2tf` 在处理 `Add` 的 channel bias initializer 时
+  - 对 `[1,C,1,1]` 这类 NCHW 常量没有正确落成 NHWC 最后一维 bias
+  - `DBNet` 上实际炸在 `Add.74`
+- 已落地修复:
+  - `scripts/convert_onnx_to_tflite.py`
+  - 自动扫描 `Add + [1,C,1,1] initializer` 模式
+  - 为命中的 `Add` 节点临时生成 `param_replacement.json`
+  - 把对应 initializer 改成 1D channel bias 值后再调用 `onnx2tf`
+- 当前实测结果:
+  - `add_const.onnx` 仍成功
+    - `904 bytes`
+  - `ppocrv3_dbnet_no_identity.onnx` 现已成功
+    - `/tmp/ppocrv3_dbnet_no_identity.wrapper.native.auto.tflite`
+    - `2364232 bytes`
+  - helper 输出里可看到:
+    - `param_replacement_count = 18`
+- 结论:
+  - `TFLite native` 现在已是“真实 DBNet 可用”
+
+2. `Paddle Lite native` 真实 DBNet 已打通
+- 之前的 blocker 也已解决，不再需要 `OldIrGuard` legacy export 兜底
+- 根因确认:
+  - 旧 wrapper 默认环境装的是 `Paddle 3.2.2`
+  - `x2paddle 1.6.0 + Paddle 3` 默认导出的是:
+    - `inference_model/model.json + model.pdiparams`
+  - 当前仓库里的 `Paddle Lite opt` 不支持该 PIR JSON 格式
+  - 所以前一阶段才会被迫走 legacy export，并在 HardSwish 路径炸掉
+- 已落地修复:
+  - `scripts/export-paddlelite-artifacts-native.mjs`
+  - 默认 venv 改到:
+    - `/tmp/paddlelite-p26-venv`
+  - 依赖与版本探针改成强制:
+    - `paddlepaddle==2.6.2`
+    - `x2paddle==1.6.0`
+    - `onnx==1.14.1`
+    - `six`
+    - `requests`
+    - `sympy`
+    - `packaging`
+  - 在 `Paddle 2.6.2` 下，`x2paddle` 会直接产出:
+    - `inference_model/model.pdmodel`
+    - `inference_model/model.pdiparams`
+  - 现有 helper 会直接识别并喂给 `opt`
+- 当前实测结果:
+  - `add_const.onnx` 成功
+    - `/tmp/add_const.wrapper.native.p26.nb`
+    - `2702 bytes`
+  - `ppocrv3_dbnet_no_identity.onnx` 现已成功
+    - `/tmp/ppocrv3_dbnet_no_identity.wrapper.native.p26.nb`
+    - `2523582 bytes`
+- 结论:
+  - `Paddle Lite native` 现在也已是“真实 DBNet 可用”
+
+3. 截止本次更正后的真实状态
+- `NCNN`: 已完成并验证
+- `MNN`: 小模型可用，真实 DBNet 浏览器侧仍 `OOM`
+- `TFLite native`: 已完成，真实 DBNet 可转
+- `Paddle Lite native`: 已完成，真实 DBNet 可转
+- `OpenVINO`: 仍是 scaffold / 未继续推进
+
+2026-04-08 当日晚些时候追加核对
+
+1. 单测与同步基线
+- `npm run test:unit`
+  - 结果:
+    - `5 passed`
+    - `59 passed | 1 skipped`
+    - `Type Errors no errors`
+- `node scripts/check-wasm-converter-sync.mjs`
+  - 成功，`checked = 3`
+
+2. 非 NCNN 推理框架现状复核
+- `TFLite native`
+  - 2026-04-08 实测:
+    - `node scripts/export-tflite-artifacts-native.mjs apps/web/public/verify/generated/add_const.onnx /tmp/add_const.native.tflite`
+    - 成功
+    - 输出 `904 bytes`
+- `Paddle Lite native`
+  - 2026-04-08 实测:
+    - `node scripts/export-paddlelite-artifacts-native.mjs apps/web/public/verify/generated/add_const.onnx /tmp/add_const.native.nb`
+    - 成功
+    - 输出 `2702 bytes`
+- `OpenVINO native`
+  - 2026-04-08 实测:
+    - `node scripts/export-openvino-artifacts-native.mjs apps/web/public/verify/generated/add_const.onnx /tmp/add_const.native.openvino.zip`
+    - 成功
+    - 输出 `722 bytes`
+- `OpenVINO Python converter`
+  - 2026-04-08 实测:
+    - `python3 scripts/smoke_openvino_python_converter.py`
+    - 成功
+    - `capability.available = true`
+    - `method = openvino_python_api`
+- `MNN auto fallback`
+  - 2026-04-08 实测:
+    - `node scripts/smoke_dbnet_mnn_auto_export.mjs`
+    - 浏览器侧真实 DBNet 仍先报:
+      - `Aborted(OOM)`
+    - 随后自动切到 native `MNNConvert`
+    - 最终成功导出:
+      - `/tmp/ppocrv3_dbnet_mnn_auto_smoke.mnn`
+      - `2330656 bytes`
+
+3. 对旧记录的更正
+- 上一段里写的:
+  - `OpenVINO: 仍是 scaffold / 未继续推进`
+- 这句话现在是不准确的
+- 截止 2026-04-08 当前可信状态应改为:
+  - `OpenVINO browser`: 仍是 scaffold
+  - `OpenVINO native export`: 已完成
+  - `OpenVINO Python converter entry`: 已完成
+- 不要再把 `OpenVINO` 整体误记成“没进展”
+
+4. 新增避免重复造轮子的统一入口
+- 新增:
+  - `npm run test:smoke:edge:baseline`
+  - `npm run test:smoke:edge:real-model`
+- 作用:
+  - 顺序复核:
+    - `wasm sync`
+    - `converter capabilities`
+    - `openvino python`
+    - `tflite native`
+    - `paddlelite native`
+    - `openvino native`
+    - `mnn auto fallback`
+- 目的:
+  - 下次恢复现场时不再手工一条条回忆和重敲 smoke 命令
+- 2026-04-08 已实测:
+  - 该入口本身已成功跑通
+  - `failedChecks = []`
+  - 当前串起来的 7 项检查全部为绿
+- `real-model` 模式已实测:
+  - 输入:
+    - `apps/web/public/verify/generated/ppocrv3_dbnet_no_identity.onnx`
+  - 当前 7 项检查也全部为绿
+  - 关键产物:
+    - `TFLite`: `2364232 bytes`
+    - `Paddle Lite`: `2523582 bytes`
+    - `OpenVINO zip`: `2121158 bytes`
+    - `MNN`: 浏览器仍先 `OOM`，但 auto fallback 后产出 `2330656 bytes`
+
+5. 本次错题本补充
+- 如果 native smoke 在当前 CLI 里直接报:
+  - `permission denied while trying to connect to the docker API`
+- 先判断为:
+  - 沙箱拦截 Docker socket
+- 不要误判成:
+  - `TFLite/PaddleLite/OpenVINO` converter 又坏了
+- 正确处理:
+  - 用容器外权限重跑对应 smoke/export 命令
+
+6. 2026-04-08 晚些时候的去重重构
+- 已新增共享 helper:
+  - `scripts/lib/native-toolchain-utils.mjs`
+  - `scripts/lib/native-smoke-utils.mjs`
+- 已把以下重复逻辑收敛到 helper:
+  - `export-tflite-artifacts-native.mjs`
+  - `export-paddlelite-artifacts-native.mjs`
+  - `export-openvino-artifacts-native.mjs`
+  - `export-mnn-artifacts-native.mjs`
+  - `build-paddlelite-opt-native.mjs`
+  - `smoke_tflite_native_export.mjs`
+  - `smoke_paddlelite_native_export.mjs`
+  - `smoke_openvino_native_export.mjs`
+- 目的:
+  - 不再把 Docker exec / repo 路径校验 / 1GB 限制 / artifact 回读 / smoke wrapper 各写一份
+
+7. 本次重构新增错题本
+- helper 重构后，必须立刻跑:
+  - `npm run test:smoke:edge:baseline`
+- 本次 quick baseline 立刻抓到了我自己引入的回归:
+  - `export-paddlelite-artifacts-native.mjs`
+  - `export-openvino-artifacts-native.mjs`
+  - `export-mnn-artifacts-native.mjs`
+  - 在抽公共 helper 时漏掉了 `path` import
+- 已修复后再次实测:
+  - `quick baseline` 全绿
+  - `real-model baseline` 全绿
+- 经验:
+  - 以后做脚本去重重构，不要只做 `node --check`
+  - 一定要立刻跑统一 smoke，才能抓到运行期回归
+
+8. `build-paddlelite-opt-native` 的老坑
+- 新发现:
+  - 旧脚本里 patch 探测写成了:
+    - `grep -q 'const FieldDescriptor* f2) const'`
+  - 这里用了正则匹配，不是字面量匹配
+  - 会导致已打补丁时仍误判，继续执行 `patch`
+- 同时还发现:
+  - `patches/paddle-lite-protobuf-gcc12.patch` 之前不是标准 unified diff
+- 已修复:
+  - 探测改为 `grep -Fq`
+  - patch 文件改成标准 unified diff 形式
+- 当前状态:
+  - 重新执行 `node scripts/build-paddlelite-opt-native.mjs` 后
+  - 已确认不再秒炸在 patch 阶段
+  - 容器内已进入真实 `make opt` 编译
+  - 但本回合未等待其完整结束
+
+9. 2026-04-08 最新可信结论：统一 compare 已接入，旧 smoke 结论不能再单独当验收
+- 已新增统一 compare 主链路:
+  - `scripts/compare_edge_framework_outputs.mjs`
+  - `scripts/infer_edge_framework.py`
+  - `scripts/native-runners/tensor_dump.hpp`
+  - `scripts/native-runners/mnn_infer.cpp`
+  - `scripts/native-runners/paddlelite_infer.cpp`
+- 已新增命令:
+  - `npm run test:compare:edge:baseline`
+  - `npm run test:compare:edge:real-model`
+- 已明确:
+  - 以前的 `test:smoke:edge:*` 只证明“导出链路能跑”
+  - 现在新增 compare 后，验收标准升级为“转换后推理输出要和 ONNX 对齐”
+
+10. 2026-04-08 最新 compare 实测结果
+- `quick baseline`:
+  - 命令:
+    - `node scripts/compare_edge_framework_outputs.mjs --frameworks=tflite,openvino,mnn`
+  - 结果:
+    - `TFLite` 通过
+    - `OpenVINO` 通过
+    - `MNN` 通过
+  - 关键结论:
+    - 三者对 `add_const.onnx` 的 3 组样本均 `maxAbsDiff = 0`
+- `real-model DBNet`:
+  - `MNN` 通过
+    - 输出形状:
+      - `1x1x160x160`
+    - `maxAbsDiff = 3.73512386e-8`
+    - `meanAbsDiff = 2.96985707190969e-11`
+  - `TFLite` 未通过
+    - 当前导出后输出固定成:
+      - `1x1x32x32`
+    - 而 ONNX 输出是:
+      - `1x1x160x160`
+    - 已尝试:
+      - 保持 `NCHW`
+      - 覆盖输入 shape `x:1,3,160,160`
+    - 仍未解决
+    - 结论:
+      - `onnx2tf` 在真实 `DBNet` 上当前仍未保持语义一致
+  - `OpenVINO` 未通过
+    - blocker:
+      - 容器 `aarch64 + openvino 2026.1.0`
+      - CPU plugin 在 `GlobalAveragePool/ReduceMean` 处报:
+        - `Supported Reduce executor is not found`
+    - 结论:
+      - `OpenVINO quick baseline` 可用
+      - `OpenVINO real-model runtime` 仍是平台/后端 blocker
+  - `Paddle Lite` 未通过
+    - 当前 even `add_const` compare 也失败
+    - native export 可以产出 `.nb`
+    - 但 LightPredictor 读取输出时仍得到:
+      - `null float buffer`
+    - 已尝试:
+      - `PrepareFeedFetch`
+      - `GetOutputByName`
+      - `GetTensor(exec_scope)`
+    - 仍未解决
+    - 结论:
+      - `Paddle Lite native export` 已有
+      - `Paddle Lite native runtime compare` 仍是 blocker
+
+11. 新错题本：不要再重复踩
+- 不要再在宿主机直接编译 `MNN/Paddle Lite` compare runner
+  - 原因:
+    - 仓库里的静态库是容器/Linux 产物
+    - 在 macOS 宿主机会报:
+      - `archive member '/' not a mach-o file`
+  - 正确做法:
+    - runner 编译和执行都放在容器里
+- 不要再把 “smoke 全绿” 误记成 “输出一致性也全绿”
+  - 2026-04-08 最新真实状态是:
+    - `MNN`: quick + real compare 都已过
+    - `TFLite`: quick 过，real 失败
+    - `OpenVINO`: quick 过，real 失败
+    - `Paddle Lite`: export 有了，但 compare 未过
+
+12. 2026-04-09 最新追加结论：`Paddle Lite` 已从 blocker 变成通过项
+- 根因已确认:
+  - 之前一直把 `build.opt.*` 里 `LITE_ON_MODEL_OPTIMIZE_TOOL=ON` 产出的 `libpaddle_api_full_bundled.a` 当成 runtime 用
+  - 这是错的
+  - Paddle Lite CMake 明确会在这种配置下把 kernels 走成 `faked` 注册路径，服务 `opt`，不是可执行推理 runtime
+- 已修复:
+  - `scripts/build-paddlelite-opt-native.mjs`
+    - 改成分离两套 build:
+      - `build.opt.native-host` 只提供 `opt`
+      - `build.runtime.native-host` 提供真实 runtime `bundle_full_api`
+    - 已加复用逻辑:
+      - 已有 `opt` 不再重复全量重编
+  - `scripts/export-paddlelite-artifacts-native.mjs`
+    - 只查找 `opt build`
+  - `scripts/compare_edge_framework_outputs.mjs`
+    - 只查找 `runtime build`
+    - `Paddle Lite` runner 编译已补 `-fopenmp`
+    - 不再传错误的 `LITE_ON_MODEL_OPTIMIZE_TOOL` 宏
+  - `scripts/convert_onnx_to_paddlelite.py`
+    - 修了 `legacy_inference` 兜底路径里 `paddle.pir_utils.OldIrGuard` 不存在的问题
+- 当前 compare 结果:
+  - `Paddle Lite quick baseline` 通过
+    - `add_const.onnx`
+    - 3 组样本全部 `maxAbsDiff = 0`
+  - `Paddle Lite real-model` 通过
+    - `ppocrv3_dbnet_no_identity.onnx`
+    - 输出形状:
+      - `1x1x160x160`
+    - `maxAbsDiff = 3.73520077e-8`
+    - `meanAbsDiff = 2.969840143170599e-11`
+
+13. 2026-04-09 当前统一 compare 最新真实状态
+- `quick baseline`
+  - `TFLite` 通过
+  - `MNN` 通过
+  - `Paddle Lite` 通过
+  - `OpenVINO` 通过
+- `real-model / DBNet`
+  - `TFLite` 通过
+  - `MNN` 通过
+  - `Paddle Lite` 通过
+  - `OpenVINO` 仍未通过
+
+14. 2026-04-09 OpenVINO real-model blocker 更新
+- 当前错误仍是:
+  - `aarch64 + openvino 2026.1.0`
+  - CPU plugin:
+    - `Supported Reduce executor is not found`
+- 新定位:
+  - 原始 ONNX 内有 `8` 个 `GlobalAveragePool`
+  - OpenVINO 转换后这些会落成 `ReduceMean`
+  - 把这 `8` 个 `GlobalAveragePool` 静态改写成等价 `AveragePool` 后
+    - `Reduce` blocker 会消失
+    - 但马上出现新的 blocker:
+      - `Supported Interpolate executor is not found`
+- 结论:
+  - `OpenVINO real-model` 现在不是单点脚本 bug
+  - 而是当前 ARM CPU plugin 对这张 DBNet 图存在多处 executor 缺口
+  - 不要再误判成“只差一个 ReduceMean 修补”
+
+15. 新错题本再追加
+- 不要再把 `build.opt.*` 里的 `bundled` 静态库当成 Paddle Lite runtime
+- `build.runtime.*` 的 runtime 目标要用:
+  - `bundle_full_api`
+  - 不要再猜 `paddle_api_full_bundled` 顶层 target 名
+- 已有 `opt` 时不要再整套重编 fake kernels
+- `export 成功` 仍然不等于 `compare 通过`
+  - 2026-04-09 的 `Paddle Lite` 就是靠 runtime/build 纠正后才真正过 compare
+
+16. 2026-04-09 浏览器统一流程再补一条关键结论
+- `manifest` 现在不只是展示清单
+  - 也是浏览器 runtime 可用性的单一事实来源
+- 已完成收口:
+  - `apps/web/src/utils/toolchains.ts`
+    - 新增共享 helper:
+      - `getToolchainRuntimeStatus`
+      - `getToolchainRuntimeReason`
+      - `toRuntimeFormatCapability`
+      - `getToolchainRuntimeBlockReason`
+  - `apps/web/src/workers/edgeToolchains.ts`
+    - 改为直接复用共享 helper 解释 manifest
+  - `apps/web/src/workers/converter.worker.ts`
+    - 不再自己手写 `availability/build-required/unavailable` 判断
+    - 改为复用 `getToolchainRuntimeBlockReason`
+- 新经验:
+  - 不要再在 `worker` 和 `UI` 各自写一套 “toolchain 是否可用” 判断
+  - 以后如果要改可用性语义，只改共享 helper 和 manifest，不要分散补丁
+
+17. 2026-04-09 一条非常容易记错的真相
+- `compare passed` 不等于 `browser runtime ready`
+- 当前浏览器真实口径:
+  - `TFLite`
+    - compare 通过
+    - 浏览器 ready
+  - `NCNN`
+    - compare 通过
+    - 浏览器 ready
+  - `MNN`
+    - compare 通过
+    - 浏览器未 ready
+    - 原因是 DBNet 级别真实模型仍会 WASM OOM
+  - `Paddle Lite`
+    - compare 通过
+    - 浏览器未 ready
+    - 原因是还没有 `paddle_lite_opt.js/.wasm`
+  - `OpenVINO`
+    - quick 通过
+    - real-model 未通过
+    - 浏览器也未 ready
+- 前端文案现在也已显式区分:
+  - `已完成 real-model 一致性验收`
+  - `已验收但浏览器仍未就绪`
+
+18. 本轮验证
+- `npm run test:unit -- tests/unit/toolchains.test.ts`
+  - 通过
+- `npx tsc --noEmit`
+  - 通过
+- `cd apps/web && npm run build`
+  - 通过

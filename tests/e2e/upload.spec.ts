@@ -11,16 +11,17 @@ test.describe('网站 demo 基础交互', () => {
     await page.goto('/');
 
     await expect(page).toHaveTitle(/ONNX2Anything/);
-    await expect(page.getByTestId('hero-section')).toContainText('上传 ONNX → 选择格式 → 点击转换');
-    await expect(page.getByTestId('upload-section')).toContainText('1. 上传 ONNX 模型');
-    await expect(page.getByTestId('conversion-section')).toContainText('2. 选择输出格式并开始转换');
+    await expect(page.getByTestId('hero-section')).toContainText('把模型放进来，剩下交给浏览器');
+    await expect(page.getByTestId('upload-section')).toContainText('1. 放进一个模型');
+    await expect(page.getByTestId('conversion-section')).toContainText('2. 选个结果，开始处理');
 
     const options = await page
       .getByTestId('target-format-select')
       .locator('option')
       .evaluateAll((items) => items.map((item) => (item as HTMLOptionElement).value));
 
-    expect(options).toEqual(['ncnn', 'mnn']);
+    expect(options).toEqual(expect.arrayContaining(['ncnn', 'mnn', 'tnn', 'tengine', 'paddlelite']));
+    expect(options.length).toBeGreaterThanOrEqual(5);
   });
 
   test('上传 ONNX 后会显示模型摘要并可重置', async ({ page }) => {

@@ -14,6 +14,7 @@
     "build:toolchain:mnn": "bash scripts/build-edge-toolchain.sh mnn",
     "build:toolchain:openvino": "bash scripts/build-edge-toolchain.sh openvino",
     "build:toolchain:paddlelite": "bash scripts/build-edge-toolchain.sh paddlelite",
+    "build:toolchain:tnn": "bash scripts/build-edge-toolchain.sh tnn",
     "build:paddlelite:opt:native": "node scripts/build-paddlelite-opt-native.mjs",
     "export:tflite:native": "node scripts/export-tflite-artifacts-native.mjs",
     "export:paddlelite:native": "node scripts/export-paddlelite-artifacts-native.mjs",
@@ -54,7 +55,10 @@
     "docker:toolchain:ncnn": "bash scripts/docker-build-toolchain.sh ncnn",
     "docker:toolchain:mnn": "bash scripts/docker-build-toolchain.sh mnn",
     "docker:toolchain:openvino": "bash scripts/docker-build-toolchain.sh openvino",
-    "docker:toolchain:paddlelite": "bash scripts/docker-build-toolchain.sh paddlelite"
+    "docker:toolchain:paddlelite": "bash scripts/docker-build-toolchain.sh paddlelite",
+    "dev:desktop": "cd apps/desktop && npm run dev",
+    "build:desktop": "cd apps/desktop && npm run build",
+    "pack:dmg": "cd apps/desktop && npm run pack:dmg"
   },
   "devDependencies": {
     "@playwright/test": "^1.41.0",

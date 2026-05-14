@@ -101,13 +101,13 @@ describe('toolchain manifest helpers', () => {
     );
   });
 
-  it('keeps paddlelite limitations aligned with the confirmed front-half blocker', () => {
+  it('keeps paddlelite limitations aligned with the browser-ready opt toolchain', () => {
     const paddlelite = BASE_FORMAT_DEFINITIONS.find(
       (entry) => entry.value === 'paddlelite'
     );
 
     expect(paddlelite?.limitations).toContain(
-      '前半段 ONNX -> Paddle 仍依赖 x2paddle + paddle Python 运行时'
+      '当前仍需要预编译的 opt WASM 工具链'
     );
   });
 
@@ -115,7 +115,67 @@ describe('toolchain manifest helpers', () => {
     const mnn = BASE_FORMAT_DEFINITIONS.find((entry) => entry.value === 'mnn');
 
     expect(mnn?.limitations).toContain(
-      '当前浏览器链已验证可稳定覆盖约 4MB 以内模型；更大的真实模型仍建议改走 native fallback'
+      '需预编译 MNNConvert 的 WASM 工具链'
     );
+  });
+
+  it('registers tnn in BASE_FORMAT_DEFINITIONS with required fields', () => {
+    const tnn = BASE_FORMAT_DEFINITIONS.find((entry) => entry.value === 'tnn');
+
+    expect(tnn).toBeDefined();
+    expect(tnn?.label).toBe('TNN');
+    expect(tnn?.platforms).toContain('Android');
+    expect(tnn?.platforms).toContain('iOS');
+    expect(tnn?.status).toBe('beta');
+  });
+
+  it('marks tnn as build-required when runtime reports missing wasm toolchain', () => {
+    const entries = [
+      {
+        id: 'tnn',
+        label: 'TNN',
+        description: 'TNN edge runtime',
+        runtime: 'wasm-module' as const,
+        availability: 'build-required' as const,
+        status: 'beta' as const,
+      },
+    ];
+
+    const resolved = applyRuntimeCapabilities(entries, {
+      tnn: {
+        available: false,
+        runtime: 'requires-toolchain',
+        wasmSupported: false,
+        reason: '缺少 convert2tnn.wasm',
+      },
+    });
+
+    expect(resolved[0].availability).toBe('build-required');
+    expect(isToolchainSelectable(resolved[0])).toBe(false);
+    expect(getToolchainBadge(resolved[0])).toBe('需编译');
+  });
+
+  it('marks tnn ready once runtime reports wasm available', () => {
+    const entries = [
+      {
+        id: 'tnn',
+        label: 'TNN',
+        description: 'TNN edge runtime',
+        runtime: 'wasm-module' as const,
+        availability: 'build-required' as const,
+        status: 'beta' as const,
+      },
+    ];
+
+    const resolved = applyRuntimeCapabilities(entries, {
+      tnn: {
+        available: true,
+        runtime: 'available',
+        wasmSupported: true,
+      },
+    });
+
+    expect(resolved[0].availability).toBe('ready');
+    expect(isToolchainSelectable(resolved[0])).toBe(true);
   });
 });

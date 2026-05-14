@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
-export type TargetFormat = 'tflite' | 'openvino' | 'ncnn' | 'mnn' | 'paddlelite';
+export type TargetFormat = 'tflite' | 'openvino' | 'ncnn' | 'mnn' | 'paddlelite' | 'tnn';
 
 export interface FormatOption {
   value: TargetFormat;
@@ -114,6 +114,23 @@ export const FORMAT_OPTIONS: FormatOption[] = [
     ],
     limitations: ['ONNX 直转链路复杂', '工具链 WASM 化成本高'],
   },
+  {
+    value: 'tnn' as TargetFormat,
+    label: 'TNN',
+    shortLabel: 'TNN',
+    description: '腾讯开源跨平台推理框架',
+    detailedDescription:
+      'TNN (Tencent Neural Network) 是腾讯开源的高性能跨平台推理框架，输出 `.tnnproto + .tnnmodel` 双文件，适合 Android、iOS 和嵌入式 Linux 部署。',
+    status: 'beta',
+    platforms: ['Android', 'iOS', 'Linux', 'macOS', 'Windows'],
+    features: [
+      'CPU-only 轻量部署',
+      '双文件输出（.tnnproto + .tnnmodel）',
+      '腾讯内部大规模验证',
+      '支持量化推理 (FP16)',
+    ],
+    limitations: ['需预编译 convert2tnn WASM 工具链', '浏览器端当前处于实验阶段'],
+  },
 ];
 
 export interface FormatSelectorProps {
@@ -152,6 +169,8 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
         return <Rocket className={iconClass} />;
       case 'mnn':
         return <Zap className={iconClass} />;
+      case 'tnn':
+        return <Cpu className={iconClass} />;
       default:
         return <Smartphone className={iconClass} />;
     }
