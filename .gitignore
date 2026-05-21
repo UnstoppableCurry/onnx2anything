@@ -121,7 +121,7 @@ tmp/
 *.bin
 # Exception: test fixtures checked in separately
 !tests/fixtures/**/*.onnx
-.github/workflows/
+# .github/workflows/ — keep workflows tracked
 third_party/Paddle-Lite/
 test_paddle.mjs
 apps/desktop/release/
