@@ -44,6 +44,16 @@ Most ONNX conversion tools require you to:
 
 ---
 
+## 🚀 Help Wanted
+
+**TFLite and CoreML are the #1 most-requested formats** and we need contributors who can compile C++ to WebAssembly with Emscripten.
+
+Each format is self-contained (~200 lines of bridge code). See [CONTRIBUTING.md](CONTRIBUTING.md) for the exact steps. If you've built WASM modules before, you can add a format in a weekend.
+
+👉 **[Open issues labeled `help wanted`](https://github.com/UnstoppableCurry/onnx2anything/issues?q=is%3Aopen+label%3A%22help+wanted%22)**
+
+---
+
 ## Features
 
 - 🔒 **Privacy-first** — your model never leaves your browser

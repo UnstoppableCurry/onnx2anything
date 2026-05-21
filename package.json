@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Convert ONNX models to NCNN, MNN, TNN, TFLite, PaddleLite entirely in your browser using WebAssembly",
+  "keywords": ["onnx", "model-conversion", "wasm", "webassembly", "ncnn", "mnn", "tnn", "tflite", "coreml", "paddlelite", "edge-inference", "browser", "pyodide", "neural-network", "deep-learning"],
   "scripts": {
     "dev": "npm run build:wasm && cd apps/web && vite",
     "build": "npm run build:toolchains && npm run build:wasm && cd apps/web && vite build",

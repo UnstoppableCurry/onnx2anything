@@ -244,14 +244,14 @@ function App() {
               <div>
                 <h1 className="text-xl font-bold">ONNX2Anything</h1>
                 <p className="text-sm text-muted-foreground">
-                  浏览器端 ONNX 模型转换工具
+                  In-browser ONNX model converter
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
               <a
-                href="https://github.com/onnx/onnx"
+                href="https://github.com/UnstoppableCurry/onnx2anything"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors p-2 rounded-lg hover:bg-muted"
@@ -272,10 +272,10 @@ function App() {
             data-testid="hero-section"
           >
             <h2 className="text-lg font-semibold tracking-tight">
-              把模型放进来，剩下交给浏览器
+              Drop your model, get the result
             </h2>
             <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
-              上传后选个结果格式，页面会带着你一步一步走完，不用盯着底层细节。
+              Select a target format and convert — entirely in your browser. No uploads, no installs.
             </p>
 
             {(isLoadingToolchains || toolchainError) && (
@@ -294,7 +294,7 @@ function App() {
             <div className="flex items-center gap-2 mb-4">
               <FileCode className="w-5 h-5 text-primary" />
               <h3 className="font-semibold">
-                1. 放进一个模型
+                1. Drop a model
               </h3>
             </div>
 
@@ -397,7 +397,7 @@ function App() {
           >
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">2. 选个结果，开始处理</h3>
+              <h3 className="font-semibold">2. Choose format &amp; convert</h3>
             </div>
             <ConverterPanel
               options={options}
@@ -462,7 +462,7 @@ function App() {
       <footer className="border-t border-border mt-12">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <p className="text-sm text-muted-foreground text-center">
-            ONNX2Anything — 浏览器端模型转换工具
+            ONNX2Anything — In-browser ONNX Model Converter
           </p>
         </div>
       </footer>
