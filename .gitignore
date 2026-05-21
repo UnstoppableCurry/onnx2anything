@@ -124,3 +124,4 @@ tmp/
 .github/workflows/
 third_party/Paddle-Lite/
 test_paddle.mjs
+apps/desktop/release/
