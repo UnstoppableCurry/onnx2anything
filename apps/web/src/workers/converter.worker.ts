@@ -26,6 +26,11 @@ interface WorkerPyodide {
     writeFile: (path: string, data: string) => void;
   };
   registerJsModule: (name: string, module: Record<string, unknown>) => void;
+  globals: {
+    set: (name: string, value: unknown) => void;
+    delete: (name: string) => void;
+    get: (name: string) => unknown;
+  };
 }
 
 interface ConversionMessage {
@@ -809,7 +814,13 @@ async function handleConvert(message: ConversionMessage): Promise<void> {
 
   try {
     // Prepare options
-    const options = {
+    const options: {
+      targetFormat: string;
+      quantization: string;
+      optimization: boolean;
+      simplify?: boolean;
+      [key: string]: unknown;
+    } = {
       targetFormat: message.targetFormat || 'tflite',
       quantization: message.quantization || 'none',
       optimization: message.optimization !== false,
