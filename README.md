@@ -9,10 +9,25 @@ No installation. No server. No uploads. Your model never leaves your machine.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/UnstoppableCurry/onnx2anything?style=social)](https://github.com/UnstoppableCurry/onnx2anything)
+[![GitHub forks](https://img.shields.io/github/forks/UnstoppableCurry/onnx2anything?style=social)](https://github.com/UnstoppableCurry/onnx2anything/fork)
+[![GitHub issues](https://img.shields.io/github/issues/UnstoppableCurry/onnx2anything)](https://github.com/UnstoppableCurry/onnx2anything/issues)
 
 **[🌐 Live Demo →](https://onnx2anything.com)** · [Report Bug](https://github.com/UnstoppableCurry/onnx2anything/issues) · [Request Format](https://github.com/UnstoppableCurry/onnx2anything/issues/new?template=format-request.md)
 
 </div>
+
+---
+
+## Demo
+
+> **Drop an ONNX model → select target format → download in seconds — all in-browser, zero server.**
+
+<!-- TODO: Replace with animated GIF recording (15s: drag model → select NCNN → convert → download) -->
+<!-- To record: open https://onnx2anything.com, use QuickTime/ScreenToGif, save as docs/demo.gif -->
+
+![ONNX2Anything Demo](docs/demo.gif)
+
+*↑ Try it yourself at [onnx2anything.com](https://onnx2anything.com)*
 
 ---
 
@@ -178,6 +193,12 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 ## License
 
 MIT © [UnstoppableCurry](https://github.com/UnstoppableCurry)
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=UnstoppableCurry/onnx2anything&type=Date)](https://star-history.com/#UnstoppableCurry/onnx2anything&Date)
 
 ---
 
