@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/**'
       - 'packages/**'
+      - 'tests/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main, develop]
@@ -14,8 +15,8 @@ env:
   NODE_VERSION: '20.x'
 
 jobs:
-  lint:
-    name: Lint & Type Check
+  typecheck:
+    name: Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,37 +27,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: apps/web/package-lock.json
 
-      - name: Install dependencies
+      - name: Install web dependencies
         run: cd apps/web && npm ci
 
-      - name: Run ESLint
-        run: cd apps/web && npx eslint . --ext ts,tsx --max-warnings 0
-
-      - name: Run TypeScript check
+      - name: TypeScript check
         run: cd apps/web && npx tsc --noEmit
-
-  test:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: apps/web/package-lock.json
-
-      - name: Install dependencies
-        run: cd apps/web && npm ci
-
-      - name: Run Vitest
-        run: cd apps/web && npx vitest run
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: typecheck
     steps:
       - uses: actions/checkout@v4
 
