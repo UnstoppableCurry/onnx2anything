@@ -40,10 +40,8 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Add .nojekyll and CNAME
-        run: |
-          touch apps/web/dist/.nojekyll
-          echo "onnx2anything.com" > apps/web/dist/CNAME
+      - name: Add .nojekyll
+        run: touch apps/web/dist/.nojekyll
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
