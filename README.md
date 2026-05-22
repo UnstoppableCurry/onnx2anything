@@ -22,9 +22,6 @@ No installation. No server. No uploads. Your model never leaves your machine.
 
 > **Drop an ONNX model → select target format → download in seconds — all in-browser, zero server.**
 
-<!-- TODO: Replace with animated GIF recording (15s: drag model → select NCNN → convert → download) -->
-<!-- To record: open https://onnx2anything.com, use QuickTime/ScreenToGif, save as docs/demo.gif -->
-
 ![ONNX2Anything Demo](docs/demo.gif)
 
 *↑ Try it yourself at [onnx2anything.com](https://onnx2anything.com)*
